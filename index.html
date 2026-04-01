@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MD Viewer</title>
+
+  <!-- Fonts -->
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- marked.js — Markdown parser -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <!-- highlight.js — syntax highlighting -->
+  <link id="hljs-theme-dark"  rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <link id="hljs-theme-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" disabled>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <style>
+    /* ── Design Tokens ─────────────────────────────────────── */
+    :root, [data-theme="light"] {
+      --color-bg:            #f7f6f2;
+      --color-surface:       #f9f8f5;
+      --color-surface-2:     #fbfbf9;
+      --color-surface-offset:#f3f0ec;
+      --color-border:        #d4d1ca;
+      --color-divider:       #dcd9d5;
+      --color-text:          #28251d;
+      --color-text-muted:    #7a7974;
+      --color-text-faint:    #bab9b4;
+      --color-primary:       #01696f;
+      --color-primary-hover: #0c4e54;
+      --color-primary-hl:    #cedcd8;
+      --color-code-bg:       #f0eeea;
+      --shadow-sm: 0 1px 2px oklch(0.2 0.01 80 / 0.06);
+      --shadow-md: 0 4px 12px oklch(0.2 0.01 80 / 0.08);
+      --radius-sm: 0.375rem;
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+      --font-body:    'Satoshi', 'Helvetica Neue', sans-serif;
+      --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+      --text-xs:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
+      --text-sm:   clamp(0.875rem, 0.8rem  + 0.35vw, 1rem);
+      --text-base: clamp(1rem,     0.95rem + 0.25vw, 1.125rem);
+      --text-lg:   clamp(1.125rem, 1rem    + 0.75vw, 1.5rem);
+      --text-xl:   clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
+      --text-2xl:  clamp(2rem,     1.2rem  + 2.5vw,  3.5rem);
+      --space-1: 0.25rem; --space-2: 0.5rem;  --space-3: 0.75rem;
+      --space-4: 1rem;    --space-5: 1.25rem; --space-6: 1.5rem;
+      --space-8: 2rem;    --space-10: 2.5rem; --space-12: 3rem;
+      --space-16: 4rem;
+      --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-theme="dark"] {
+      --color-bg:            #171614;
+      --color-surface:       #1c1b19;
+      --color-surface-2:     #201f1d;
+      --color-surface-offset:#1d1c1a;
+      --color-border:        #393836;
+      --color-divider:       #262523;
+      --color-text:          #cdccca;
+      --color-text-muted:    #797876;
+      --color-text-faint:    #5a5957;
+      --color-primary:       #4f98a3;
+      --color-primary-hover: #227f8b;
+      --color-primary-hl:    #313b3b;
+      --color-code-bg:       #242321;
+      --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+      --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme]) {
+        --color-bg:            #171614;
+        --color-surface:       #1c1b19;
+        --color-surface-2:     #201f1d;
+        --color-surface-offset:#1d1c1a;
+        --color-border:        #393836;
+        --color-divider:       #262523;
+        --color-text:          #cdccca;
+        --color-text-muted:    #797876;
+        --color-text-faint:    #5a5957;
+        --color-primary:       #4f98a3;
+        --color-primary-hover: #227f8b;
+        --color-primary-hl:    #313b3b;
+        --color-code-bg:       #242321;
+        --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+        --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+      }
+    }
+
+    /* ── Reset ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      scroll-behavior: smooth;
+      scroll-padding-top: var(--space-16);
+    }
+    body {
+      min-height: 100dvh;
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: 1.65;
+      color: var(--color-text);
+      background: var(--color-bg);
+      transition: background var(--transition), color var(--transition);
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    button { cursor: pointer; background: none; border: none; font: inherit; color: inherit; }
+    a, button { transition: color var(--transition), background var(--transition), border-color var(--transition); }
+    :focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+    ::selection { background: color-mix(in oklab, var(--color-primary) 25%, transparent); color: var(--color-text); }
+
+    /* ── Layout ────────────────────────────────────────────── */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: color-mix(in oklab, var(--color-bg) 85%, transparent);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--color-divider);
+      padding: var(--space-3) var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+
+    .app-logo {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-decoration: none;
+      letter-spacing: 0.01em;
+    }
+
+    .app-logo svg { color: var(--color-primary); flex-shrink: 0; }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .btn-icon {
+      width: 2rem;
+      height: 2rem;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-muted);
+    }
+    .btn-icon:hover { background: var(--color-surface-offset); color: var(--color-text); }
+
+    .url-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-1) var(--space-2);
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .url-input-wrap:focus-within {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 15%, transparent);
+    }
+    .url-input-icon { color: var(--color-text-faint); flex-shrink: 0; }
+    .url-input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: var(--text-sm);
+      color: var(--color-text);
+      width: clamp(200px, 40vw, 480px);
+      font-family: var(--font-mono);
+    }
+    .url-input::placeholder { color: var(--color-text-faint); font-family: var(--font-body); }
+    .btn-load {
+      background: var(--color-primary);
+      color: #fff;
+      font-size: var(--text-xs);
+      font-weight: 600;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.02em;
+    }
+    .btn-load:hover { background: var(--color-primary-hover); }
+
+    /* ── Main content ───────────────────────────────────────── */
+    .main-wrap {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: var(--space-12) var(--space-6);
+    }
+
+    /* ── States ─────────────────────────────────────────────── */
+    .state-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-4);
+      min-height: 40vh;
+      text-align: center;
+    }
+    .state-icon { color: var(--color-text-faint); }
+    .state-title {
+      font-size: var(--text-lg);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .state-desc { font-size: var(--text-sm); color: var(--color-text-muted); max-width: 40ch; }
+    .state-box.error .state-icon { color: #a53142; }
+    .state-box.error .state-title { color: #a53142; }
+
+    /* Skeleton loader */
+    .skeleton-wrap { display: flex; flex-direction: column; gap: var(--space-4); }
+    .skeleton {
+      background: linear-gradient(90deg,
+        var(--color-surface-offset) 25%,
+        var(--color-border) 50%,
+        var(--color-surface-offset) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite linear;
+      border-radius: var(--radius-sm);
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .sk-h1 { height: 2.5rem; width: 70%; }
+    .sk-h2 { height: 1.6rem; width: 50%; margin-top: var(--space-8); }
+    .sk-p  { height: 1rem; width: 100%; }
+    .sk-p.short { width: 80%; }
+    .sk-p.mid   { width: 90%; }
+
+    /* ── Markdown styles ────────────────────────────────────── */
+    .md-body { animation: fadeIn 0.25s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    .md-body h1, .md-body h2, .md-body h3,
+    .md-body h4, .md-body h5, .md-body h6 {
+      font-family: var(--font-body);
+      font-weight: 700;
+      line-height: 1.2;
+      text-wrap: balance;
+      color: var(--color-text);
+    }
+    .md-body h1 { font-size: var(--text-2xl); margin-bottom: var(--space-6); margin-top: 0; }
+    .md-body h2 { font-size: var(--text-xl);  margin-top: var(--space-12); margin-bottom: var(--space-4); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-divider); }
+    .md-body h3 { font-size: var(--text-lg);  margin-top: var(--space-8);  margin-bottom: var(--space-3); }
+    .md-body h4 { font-size: var(--text-base); font-weight: 600; margin-top: var(--space-6); margin-bottom: var(--space-2); }
+    .md-body h5, .md-body h6 { font-size: var(--text-sm); font-weight: 600; margin-top: var(--space-4); margin-bottom: var(--space-2); color: var(--color-text-muted); }
+
+    .md-body p { margin-bottom: var(--space-4); max-width: 72ch; }
+    .md-body p:last-child { margin-bottom: 0; }
+
+    .md-body a {
+      color: var(--color-primary);
+      text-decoration: underline;
+      text-decoration-color: color-mix(in oklab, var(--color-primary) 40%, transparent);
+      text-underline-offset: 3px;
+    }
+    .md-body a:hover {
+      color: var(--color-primary-hover);
+      text-decoration-color: var(--color-primary-hover);
+    }
+
+    .md-body strong { font-weight: 700; }
+    .md-body em { font-style: italic; }
+    .md-body del { text-decoration: line-through; color: var(--color-text-muted); }
+
+    .md-body ul, .md-body ol {
+      padding-left: var(--space-6);
+      margin-bottom: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+    .md-body li { max-width: 72ch; }
+    .md-body li > ul, .md-body li > ol { margin-top: var(--space-1); margin-bottom: 0; }
+    .md-body ul { list-style: disc; }
+    .md-body ol { list-style: decimal; }
+
+    .md-body blockquote {
+      border-left: 3px solid var(--color-primary);
+      background: var(--color-surface);
+      padding: var(--space-3) var(--space-5);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      margin: var(--space-6) 0;
+      color: var(--color-text-muted);
+    }
+    .md-body blockquote p { margin-bottom: 0; }
+
+    /* Inline code */
+    .md-body :not(pre) > code {
+      font-family: var(--font-mono);
+      font-size: 0.875em;
+      background: var(--color-code-bg);
+      border: 1px solid var(--color-divider);
+      border-radius: var(--radius-sm);
+      padding: 0.15em 0.4em;
+      color: var(--color-text);
+    }
+
+    /* Code blocks */
+    .md-body pre {
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin: var(--space-6) 0;
+      box-shadow: var(--shadow-sm);
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-2) var(--space-4);
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface);
+    }
+    .code-lang {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .btn-copy {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1) var(--space-2);
+      border-radius: var(--radius-sm);
+    }
+    .btn-copy:hover { background: var(--color-surface-offset); color: var(--color-text); }
+    .btn-copy.copied { color: var(--color-primary); }
+
+    .md-body pre code {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      line-height: 1.7;
+      padding: var(--space-4);
+      overflow-x: auto;
+      background: transparent !important;
+      border: none !important;
+    }
+
+    /* Tables */
+    .md-body .table-wrap {
+      overflow-x: auto;
+      margin: var(--space-6) 0;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow-sm);
+    }
+    .md-body table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    .md-body thead { background: var(--color-surface); }
+    .md-body th {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-weight: 600;
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .md-body td {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--color-divider);
+      color: var(--color-text);
+      vertical-align: top;
+    }
+    .md-body tbody tr:last-child td { border-bottom: none; }
+    .md-body tbody tr:hover { background: var(--color-surface); }
+
+    .md-body hr {
+      border: none;
+      border-top: 1px solid var(--color-divider);
+      margin: var(--space-10) 0;
+    }
+
+    .md-body img {
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      margin: var(--space-6) 0;
+      max-width: 100%;
+    }
+
+    /* Task lists */
+    .md-body input[type="checkbox"] {
+      accent-color: var(--color-primary);
+      width: 1em;
+      height: 1em;
+      margin-right: var(--space-2);
+    }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .app-header { padding: var(--space-2) var(--space-4); flex-wrap: wrap; gap: var(--space-2); }
+      .url-input { width: 100%; }
+      .url-input-wrap { flex: 1; }
+      .main-wrap { padding: var(--space-8) var(--space-4); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────── -->
+  <header class="app-header">
+    <a class="app-logo" href="?">
+      <!-- SVG logo: minimal document mark -->
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+        <rect x="3" y="1" width="13" height="17" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M16 5l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M6 7h7M6 10h5M6 13h6" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+      </svg>
+      MD Viewer
+    </a>
+
+    <div class="header-right">
+      <div class="url-input-wrap">
+        <svg class="url-input-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        <input
+          class="url-input"
+          id="urlInput"
+          type="url"
+          placeholder="https://example.com/README.md"
+          spellcheck="false"
+          autocomplete="off"
+          aria-label="URL файла Markdown"
+        >
+        <button class="btn-load" id="btnLoad" aria-label="Загрузить">Открыть</button>
+      </div>
+
+      <!-- Dark mode toggle -->
+      <button class="btn-icon" id="themeToggle" aria-label="Сменить тему" title="Сменить тему">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Content ──────────────────────────────────────────── -->
+  <main class="main-wrap">
+    <div id="content">
+      <!-- Initial empty state -->
+      <div class="state-box" id="emptyState">
+        <svg class="state-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <p class="state-title">Вставь ссылку на .md файл</p>
+        <p class="state-desc">Передай URL через параметр <code>?url=</code> или вставь в поле выше</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  (function () {
+    'use strict';
+
+    /* ── Theme ─────────────────────────────────────────────── */
+    const html = document.documentElement;
+    const toggle = document.getElementById('themeToggle');
+
+    let theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    html.setAttribute('data-theme', theme);
+    syncHljsTheme(theme);
+
+    toggle.addEventListener('click', () => {
+      theme = theme === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', theme);
+      syncHljsTheme(theme);
+      updateThemeIcon();
+    });
+
+    function syncHljsTheme(t) {
+      document.getElementById('hljs-theme-dark').disabled  = (t !== 'dark');
+      document.getElementById('hljs-theme-light').disabled = (t !== 'light');
+    }
+
+    const MOON_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+    const SUN_ICON  = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+
+    function updateThemeIcon() {
+      toggle.innerHTML = theme === 'dark' ? MOON_ICON : SUN_ICON;
+      toggle.setAttribute('aria-label', theme === 'dark' ? 'Светлая тема' : 'Тёмная тема');
+    }
+    updateThemeIcon();
+
+    /* ── Marked setup ────────────────────────────────────────── */
+    marked.use({
+      gfm: true,
+      breaks: false,
+      renderer: (() => {
+        const r = new marked.Renderer();
+
+        // Wrap tables
+        r.table = function(header, body) {
+          return `<div class="table-wrap"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
+        };
+
+        // Code blocks with header + copy button
+        r.code = function(code, lang) {
+          const validLang = lang && hljs.getLanguage(lang) ? lang : null;
+          const highlighted = validLang
+            ? hljs.highlight(code, { language: validLang }).value
+            : hljs.highlightAuto(code).value;
+          const detectedLang = validLang || 'auto';
+          const escapedCode = escHtml(code);
+
+          return `<pre><div class="code-header">
+            <span class="code-lang">${escHtml(detectedLang)}</span>
+            <button class="btn-copy" data-code="${escapedCode.replace(/"/g,'&quot;')}" title="Скопировать">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Копировать
+            </button>
+          </div><code class="hljs language-${escHtml(detectedLang)}">${highlighted}</code></pre>`;
+        };
+
+        return r;
+      })()
+    });
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /* ── Copy buttons (delegated) ─────────────────────────────── */
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.btn-copy');
+      if (!btn) return;
+      const code = btn.dataset.code
+        .replace(/&amp;/g,'&').replace(/&lt;/g,'<')
+        .replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+      navigator.clipboard.writeText(code).then(() => {
+        btn.classList.add('copied');
+        btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Скопировано';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Копировать';
+        }, 2000);
+      });
+    });
+
+    /* ── URL input & loading ─────────────────────────────────── */
+    const urlInput = document.getElementById('urlInput');
+    const btnLoad  = document.getElementById('btnLoad');
+    const content  = document.getElementById('content');
+
+    function getParam(name) {
+      return new URLSearchParams(location.search).get(name);
+    }
+
+    function setParam(url) {
+      const sp = new URLSearchParams(location.search);
+      sp.set('url', url);
+      history.pushState({}, '', '?' + sp.toString());
+      document.title = 'MD Viewer — ' + url.split('/').pop();
+    }
+
+    function showSkeleton() {
+      content.innerHTML = `<div class="skeleton-wrap">
+        <div class="skeleton sk-h1"></div>
+        <div class="skeleton sk-p"></div>
+        <div class="skeleton sk-p mid"></div>
+        <div class="skeleton sk-p short"></div>
+        <div class="skeleton sk-h2"></div>
+        <div class="skeleton sk-p"></div>
+        <div class="skeleton sk-p mid"></div>
+        <div class="skeleton sk-p"></div>
+        <div class="skeleton sk-p short"></div>
+        <div class="skeleton sk-h2"></div>
+        <div class="skeleton sk-p"></div>
+        <div class="skeleton sk-p mid"></div>
+      </div>`;
+    }
+
+    function showError(msg) {
+      content.innerHTML = `<div class="state-box error">
+        <svg class="state-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p class="state-title">Ошибка загрузки</p>
+        <p class="state-desc">${escHtml(msg)}</p>
+      </div>`;
+    }
+
+    // CORS proxies to try in order
+    const PROXIES = [
+      url => url,  // direct first
+      url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+      url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+    ];
+
+    async function fetchWithFallback(url) {
+      let lastErr;
+      for (const proxy of PROXIES) {
+        const proxied = proxy(url);
+        try {
+          const resp = await fetch(proxied, { signal: AbortSignal.timeout(8000) });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
+          const text = await resp.text();
+          return text;
+        } catch (err) {
+          lastErr = err;
+          // network error or timeout — try next proxy
+        }
+      }
+      throw lastErr;
+    }
+
+    async function loadMarkdown(rawUrl) {
+      if (!rawUrl) return;
+      rawUrl = rawUrl.trim();
+
+      // Validate looks like a URL
+      if (!/^https?:\/\//i.test(rawUrl)) {
+        showError('URL должен начинаться с http:// или https://');
+        return;
+      }
+
+      // Auto-convert GitHub blob → raw
+      rawUrl = rawUrl
+        .replace(/^https:\/\/github\.com\/(.+?)\/blob\//, 'https://raw.githubusercontent.com/$1/')
+        .replace(/^https:\/\/gitlab\.com\/(.+?)\/-\/blob\//, 'https://gitlab.com/$1/-/raw/');
+
+      urlInput.value = rawUrl;
+      showSkeleton();
+
+      try {
+        const text = await fetchWithFallback(rawUrl);
+        const html  = marked.parse(text);
+        content.innerHTML = '<article class="md-body">' + html + '</article>';
+        setParam(rawUrl);
+        document.title = 'MD Viewer — ' + rawUrl.split('/').pop().replace(/\.md$/i,'');
+      } catch (err) {
+        showError((err.message || 'Неизвестная ошибка') + '<br><small style="opacity:.6">URL: ' + escHtml(rawUrl) + '</small>');
+      }
+    }
+
+    btnLoad.addEventListener('click', () => loadMarkdown(urlInput.value));
+    urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') loadMarkdown(urlInput.value);
+    });
+
+    // Auto-load from ?url= on page load
+    const initUrl = getParam('url');
+    if (initUrl) {
+      urlInput.value = initUrl;
+      loadMarkdown(initUrl);
+    }
+
+    // Handle browser back/forward
+    window.addEventListener('popstate', () => {
+      const u = getParam('url');
+      if (u) { urlInput.value = u; loadMarkdown(u); }
+    });
+
+  })();
+  </script>
+</body>
+</html>
