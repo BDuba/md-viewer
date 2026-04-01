@@ -370,27 +370,46 @@
       border-radius: var(--radius-lg);
       border: 1px solid var(--color-border);
       box-shadow: var(--shadow-sm);
+      -webkit-overflow-scrolling: touch;
     }
-    .md-body table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
-    .md-body thead { background: var(--color-surface); }
+    /* Scrollbar styling for table */
+    .md-body .table-wrap::-webkit-scrollbar { height: 5px; }
+    .md-body .table-wrap::-webkit-scrollbar-track { background: var(--color-surface); }
+    .md-body .table-wrap::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 99px; }
+
+    .md-body table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); white-space: nowrap; }
+    .md-body thead { background: var(--color-surface); position: sticky; top: 0; z-index: 1; }
     .md-body th {
-      padding: var(--space-3) var(--space-4);
+      padding: var(--space-2) var(--space-3);
       text-align: left;
       font-weight: 600;
-      font-size: var(--text-xs);
+      font-size: 0.7rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
       color: var(--color-text-muted);
       border-bottom: 1px solid var(--color-border);
+      white-space: nowrap;
     }
     .md-body td {
-      padding: var(--space-3) var(--space-4);
+      padding: var(--space-2) var(--space-3);
       border-bottom: 1px solid var(--color-divider);
       color: var(--color-text);
-      vertical-align: top;
+      vertical-align: middle;
+      white-space: nowrap;
     }
     .md-body tbody tr:last-child td { border-bottom: none; }
     .md-body tbody tr:hover { background: var(--color-surface); }
+
+    /* Compact mode */
+    .compact .md-body { font-size: var(--text-sm); }
+    .compact .main-wrap { max-width: 100%; padding: var(--space-4) var(--space-4); }
+    .compact .md-body h1 { font-size: var(--text-xl); }
+    .compact .md-body h2 { font-size: var(--text-lg); margin-top: var(--space-8); }
+    .compact .md-body h3 { font-size: var(--text-base); margin-top: var(--space-6); }
+    .compact .md-body table { font-size: 0.72rem; }
+    .compact .md-body th  { font-size: 0.65rem; padding: 3px var(--space-2); }
+    .compact .md-body td  { padding: 3px var(--space-2); }
+    .compact .md-body p, .compact .md-body li { max-width: 100%; }
 
     .md-body hr {
       border: none;
@@ -454,6 +473,14 @@
         <button class="btn-load" id="btnLoad" aria-label="Загрузить">Открыть</button>
       </div>
 
+      <!-- Compact mode toggle -->
+      <button class="btn-icon" id="compactToggle" aria-label="Компактный режим" title="Компактный режим">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+
       <!-- Dark mode toggle -->
       <button class="btn-icon" id="themeToggle" aria-label="Сменить тему" title="Сменить тему">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -513,6 +540,20 @@
       toggle.setAttribute('aria-label', theme === 'dark' ? 'Светлая тема' : 'Тёмная тема');
     }
     updateThemeIcon();
+
+    /* ── Compact mode ───────────────────────────────────────── */
+    const compactBtn = document.getElementById('compactToggle');
+    let compact = false;
+    const COMPACT_ICON   = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+    const EXPANDED_ICON  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="4" x2="21" y2="4"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="20" x2="21" y2="20"/></svg>';
+
+    compactBtn.addEventListener('click', () => {
+      compact = !compact;
+      document.body.classList.toggle('compact', compact);
+      compactBtn.innerHTML = compact ? EXPANDED_ICON : COMPACT_ICON;
+      compactBtn.setAttribute('title', compact ? 'Обычный вид' : 'Компактный вид');
+      compactBtn.style.color = compact ? 'var(--color-primary)' : '';
+    });
 
     /* ── Marked setup ────────────────────────────────────────── */
     marked.use({
