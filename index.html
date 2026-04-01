@@ -618,9 +618,10 @@
 
     // CORS proxies to try in order
     const PROXIES = [
-      url => url,  // direct first
-      url => 'https://corsproxy.io/?' + encodeURIComponent(url),
-      url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+      url => url,                                                          // 1. direct
+      url => 'https://cors.eu.org/' + url,                                // 2. cors.eu.org
+      url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url), // 3. allorigins
+      url => 'https://corsproxy.org/?' + encodeURIComponent(url),         // 4. corsproxy.org
     ];
 
     async function fetchWithFallback(url) {
@@ -628,7 +629,7 @@
       for (const proxy of PROXIES) {
         const proxied = proxy(url);
         try {
-          const resp = await fetch(proxied, { signal: AbortSignal.timeout(8000) });
+          const resp = await fetch(proxied, { signal: AbortSignal.timeout(12000) });
           if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
           const text = await resp.text();
           return text;
