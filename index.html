@@ -3,486 +3,420 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MD Viewer</title>
+  <title>File Viewer</title>
 
-  <!-- Fonts -->
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-  <!-- marked.js — Markdown parser -->
   <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
-  <!-- highlight.js — syntax highlighting -->
   <link id="hljs-theme-dark"  rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
   <link id="hljs-theme-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" disabled>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
   <style>
-    /* ── Design Tokens ─────────────────────────────────────── */
+    /* ── Tokens ───────────────────────────────────────────── */
     :root, [data-theme="light"] {
-      --color-bg:            #f7f6f2;
-      --color-surface:       #f9f8f5;
-      --color-surface-2:     #fbfbf9;
-      --color-surface-offset:#f3f0ec;
-      --color-border:        #d4d1ca;
-      --color-divider:       #dcd9d5;
-      --color-text:          #28251d;
-      --color-text-muted:    #7a7974;
-      --color-text-faint:    #bab9b4;
-      --color-primary:       #01696f;
-      --color-primary-hover: #0c4e54;
-      --color-primary-hl:    #cedcd8;
-      --color-code-bg:       #f0eeea;
-      --shadow-sm: 0 1px 2px oklch(0.2 0.01 80 / 0.06);
-      --shadow-md: 0 4px 12px oklch(0.2 0.01 80 / 0.08);
-      --radius-sm: 0.375rem;
-      --radius-md: 0.5rem;
-      --radius-lg: 0.75rem;
-      --font-body:    'Satoshi', 'Helvetica Neue', sans-serif;
-      --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
-      --text-xs:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
-      --text-sm:   clamp(0.875rem, 0.8rem  + 0.35vw, 1rem);
-      --text-base: clamp(1rem,     0.95rem + 0.25vw, 1.125rem);
-      --text-lg:   clamp(1.125rem, 1rem    + 0.75vw, 1.5rem);
-      --text-xl:   clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
-      --text-2xl:  clamp(2rem,     1.2rem  + 2.5vw,  3.5rem);
-      --space-1: 0.25rem; --space-2: 0.5rem;  --space-3: 0.75rem;
-      --space-4: 1rem;    --space-5: 1.25rem; --space-6: 1.5rem;
-      --space-8: 2rem;    --space-10: 2.5rem; --space-12: 3rem;
-      --space-16: 4rem;
-      --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
-    }
+      --bg:            #f7f6f2;
+      --surface:       #f9f8f5;
+      --surface-2:     #fbfbf9;
+      --surface-off:   #f3f0ec;
+      --border:        #d4d1ca;
+      --divider:       #dcd9d5;
+      --text:          #28251d;
+      --muted:         #7a7974;
+      --faint:         #bab9b4;
+      --primary:       #01696f;
+      --primary-h:     #0c4e54;
+      --primary-hl:    #cedcd8;
+      --code-bg:       #f0eeea;
+      --shadow-sm:     0 1px 2px oklch(0.2 0.01 80 / 0.06);
+      --shadow-md:     0 4px 12px oklch(0.2 0.01 80 / 0.08);
+      --r-sm: 0.375rem; --r-md: 0.5rem; --r-lg: 0.75rem;
+      --font:  'Satoshi', 'Helvetica Neue', sans-serif;
+      --mono:  'JetBrains Mono', 'Fira Code', monospace;
+      --tx:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
+      --ts:   clamp(0.875rem, 0.8rem  + 0.35vw, 1rem);
+      --tb:   clamp(1rem,     0.95rem + 0.25vw, 1.125rem);
+      --tl:   clamp(1.125rem, 1rem    + 0.75vw, 1.5rem);
+      --txl:  clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
+      --t2xl: clamp(2rem,     1.2rem  + 2.5vw,  3.5rem);
+      --tr: 180ms cubic-bezier(0.16, 1, 0.3, 1);
 
+      /* JSON value colours */
+      --j-str:   #127d67;
+      --j-num:   #b55000;
+      --j-bool:  #6354b0;
+      --j-null:  #a53142;
+      --j-key:   #28251d;
+      --j-meta:  #7a7974;
+    }
     [data-theme="dark"] {
-      --color-bg:            #171614;
-      --color-surface:       #1c1b19;
-      --color-surface-2:     #201f1d;
-      --color-surface-offset:#1d1c1a;
-      --color-border:        #393836;
-      --color-divider:       #262523;
-      --color-text:          #cdccca;
-      --color-text-muted:    #797876;
-      --color-text-faint:    #5a5957;
-      --color-primary:       #4f98a3;
-      --color-primary-hover: #227f8b;
-      --color-primary-hl:    #313b3b;
-      --color-code-bg:       #242321;
-      --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
-      --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+      --bg:            #171614;
+      --surface:       #1c1b19;
+      --surface-2:     #201f1d;
+      --surface-off:   #1d1c1a;
+      --border:        #393836;
+      --divider:       #262523;
+      --text:          #cdccca;
+      --muted:         #797876;
+      --faint:         #5a5957;
+      --primary:       #4f98a3;
+      --primary-h:     #227f8b;
+      --primary-hl:    #313b3b;
+      --code-bg:       #242321;
+      --shadow-sm:     0 1px 2px oklch(0 0 0 / 0.2);
+      --shadow-md:     0 4px 12px oklch(0 0 0 / 0.3);
+      --j-str:   #4db891;
+      --j-num:   #f0965a;
+      --j-bool:  #a89ce8;
+      --j-null:  #e07080;
+      --j-key:   #cdccca;
+      --j-meta:  #797876;
     }
-
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme]) {
-        --color-bg:            #171614;
-        --color-surface:       #1c1b19;
-        --color-surface-2:     #201f1d;
-        --color-surface-offset:#1d1c1a;
-        --color-border:        #393836;
-        --color-divider:       #262523;
-        --color-text:          #cdccca;
-        --color-text-muted:    #797876;
-        --color-text-faint:    #5a5957;
-        --color-primary:       #4f98a3;
-        --color-primary-hover: #227f8b;
-        --color-primary-hl:    #313b3b;
-        --color-code-bg:       #242321;
-        --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
-        --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+        --bg:#171614;--surface:#1c1b19;--surface-2:#201f1d;--surface-off:#1d1c1a;
+        --border:#393836;--divider:#262523;--text:#cdccca;--muted:#797876;--faint:#5a5957;
+        --primary:#4f98a3;--primary-h:#227f8b;--primary-hl:#313b3b;--code-bg:#242321;
+        --shadow-sm:0 1px 2px oklch(0 0 0 / 0.2);--shadow-md:0 4px 12px oklch(0 0 0 / 0.3);
+        --j-str:#4db891;--j-num:#f0965a;--j-bool:#a89ce8;--j-null:#e07080;--j-key:#cdccca;--j-meta:#797876;
       }
     }
 
-    /* ── Reset ─────────────────────────────────────────────── */
+    /* ── Reset ────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      text-rendering: optimizeLegibility;
-      scroll-behavior: smooth;
-      scroll-padding-top: var(--space-16);
-    }
+    html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; scroll-padding-top: 4rem; }
     body {
       min-height: 100dvh;
-      font-family: var(--font-body);
-      font-size: var(--text-base);
+      font-family: var(--font);
+      font-size: var(--tb);
       line-height: 1.65;
-      color: var(--color-text);
-      background: var(--color-bg);
-      transition: background var(--transition), color var(--transition);
+      color: var(--text);
+      background: var(--bg);
+      transition: background var(--tr), color var(--tr);
     }
     img { display: block; max-width: 100%; height: auto; }
     button { cursor: pointer; background: none; border: none; font: inherit; color: inherit; }
-    a, button { transition: color var(--transition), background var(--transition), border-color var(--transition); }
-    :focus-visible {
-      outline: 2px solid var(--color-primary);
-      outline-offset: 3px;
-      border-radius: var(--radius-sm);
-    }
-    ::selection { background: color-mix(in oklab, var(--color-primary) 25%, transparent); color: var(--color-text); }
+    a, button { transition: color var(--tr), background var(--tr), border-color var(--tr); }
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: var(--r-sm); }
+    ::selection { background: color-mix(in oklab, var(--primary) 25%, transparent); color: var(--text); }
 
-    /* ── Layout ────────────────────────────────────────────── */
+    /* ── Header ───────────────────────────────────────────── */
     .app-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: color-mix(in oklab, var(--color-bg) 85%, transparent);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--color-divider);
-      padding: var(--space-3) var(--space-6);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-4);
+      position: sticky; top: 0; z-index: 100;
+      background: color-mix(in oklab, var(--bg) 85%, transparent);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--divider);
+      padding: 0.6rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
     }
-
     .app-logo {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      font-size: var(--text-sm);
-      font-weight: 600;
-      color: var(--color-text-muted);
-      text-decoration: none;
-      letter-spacing: 0.01em;
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: var(--ts); font-weight: 600; color: var(--muted);
+      text-decoration: none; letter-spacing: 0.01em; white-space: nowrap;
     }
-
-    .app-logo svg { color: var(--color-primary); flex-shrink: 0; }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-    }
-
-    .btn-icon {
-      width: 2rem;
-      height: 2rem;
-      border-radius: var(--radius-md);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--color-text-muted);
-    }
-    .btn-icon:hover { background: var(--color-surface-offset); color: var(--color-text); }
+    .app-logo svg { color: var(--primary); flex-shrink: 0; }
+    .header-right { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 
     .url-input-wrap {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-1) var(--space-2);
-      transition: border-color var(--transition), box-shadow var(--transition);
+      display: flex; align-items: center; gap: 0.5rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 0.2rem 0.5rem;
+      transition: border-color var(--tr), box-shadow var(--tr);
     }
     .url-input-wrap:focus-within {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 15%, transparent);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 15%, transparent);
     }
-    .url-input-icon { color: var(--color-text-faint); flex-shrink: 0; }
+    .url-input-icon { color: var(--faint); flex-shrink: 0; }
     .url-input {
-      border: none;
-      outline: none;
-      background: transparent;
-      font-size: var(--text-sm);
-      color: var(--color-text);
-      width: clamp(200px, 40vw, 480px);
-      font-family: var(--font-mono);
+      border: none; outline: none; background: transparent;
+      font-size: var(--ts); color: var(--text);
+      width: clamp(160px, 36vw, 460px);
+      font-family: var(--mono);
     }
-    .url-input::placeholder { color: var(--color-text-faint); font-family: var(--font-body); }
+    .url-input::placeholder { color: var(--faint); font-family: var(--font); }
     .btn-load {
-      background: var(--color-primary);
-      color: #fff;
-      font-size: var(--text-xs);
-      font-weight: 600;
-      padding: var(--space-1) var(--space-3);
-      border-radius: var(--radius-sm);
-      letter-spacing: 0.02em;
+      background: var(--primary); color: #fff;
+      font-size: var(--tx); font-weight: 600;
+      padding: 0.2rem 0.7rem; border-radius: var(--r-sm); letter-spacing: 0.02em;
     }
-    .btn-load:hover { background: var(--color-primary-hover); }
+    .btn-load:hover { background: var(--primary-h); }
 
-    /* ── Main content ───────────────────────────────────────── */
-    .main-wrap {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: var(--space-12) var(--space-6);
+    .btn-icon {
+      width: 2rem; height: 2rem; border-radius: var(--r-md);
+      display: flex; align-items: center; justify-content: center; color: var(--muted);
     }
+    .btn-icon:hover { background: var(--surface-off); color: var(--text); }
+    .btn-icon.active { color: var(--primary); }
 
-    /* ── States ─────────────────────────────────────────────── */
+    /* file-type badge */
+    .file-badge {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em;
+      padding: 0.15rem 0.45rem; border-radius: 99px;
+      border: 1px solid var(--border); color: var(--muted);
+      background: var(--surface); text-transform: uppercase;
+      display: none;
+    }
+    .file-badge.visible { display: inline-flex; }
+    .file-badge.json { border-color: var(--j-num); color: var(--j-num);
+      background: color-mix(in oklab, var(--j-num) 8%, transparent); }
+    .file-badge.md   { border-color: var(--primary); color: var(--primary);
+      background: color-mix(in oklab, var(--primary) 8%, transparent); }
+
+    /* ── Main ─────────────────────────────────────────────── */
+    .main-wrap { max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem; }
+
+    /* ── States ───────────────────────────────────────────── */
     .state-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-4);
-      min-height: 40vh;
-      text-align: center;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 1rem;
+      min-height: 40vh; text-align: center;
     }
-    .state-icon { color: var(--color-text-faint); }
-    .state-title {
-      font-size: var(--text-lg);
-      font-weight: 600;
-      color: var(--color-text);
-    }
-    .state-desc { font-size: var(--text-sm); color: var(--color-text-muted); max-width: 40ch; }
-    .state-box.error .state-icon { color: #a53142; }
-    .state-box.error .state-title { color: #a53142; }
+    .state-icon { color: var(--faint); }
+    .state-title { font-size: var(--tl); font-weight: 600; color: var(--text); }
+    .state-desc { font-size: var(--ts); color: var(--muted); max-width: 40ch; }
+    .state-box.error .state-icon, .state-box.error .state-title { color: #a53142; }
 
-    /* Skeleton loader */
-    .skeleton-wrap { display: flex; flex-direction: column; gap: var(--space-4); }
+    /* Skeleton */
+    .skeleton-wrap { display: flex; flex-direction: column; gap: 1rem; }
     .skeleton {
-      background: linear-gradient(90deg,
-        var(--color-surface-offset) 25%,
-        var(--color-border) 50%,
-        var(--color-surface-offset) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite linear;
-      border-radius: var(--radius-sm);
+      background: linear-gradient(90deg,var(--surface-off) 25%,var(--border) 50%,var(--surface-off) 75%);
+      background-size: 200% 100%; animation: shimmer 1.4s infinite linear; border-radius: var(--r-sm);
     }
-    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    .sk-h1 { height: 2.5rem; width: 70%; }
-    .sk-h2 { height: 1.6rem; width: 50%; margin-top: var(--space-8); }
-    .sk-p  { height: 1rem; width: 100%; }
-    .sk-p.short { width: 80%; }
-    .sk-p.mid   { width: 90%; }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .sk-h1{height:2.5rem;width:70%} .sk-h2{height:1.6rem;width:50%;margin-top:2rem}
+    .sk-p{height:1rem;width:100%} .sk-p.short{width:80%} .sk-p.mid{width:90%}
 
-    /* ── Markdown styles ────────────────────────────────────── */
+    /* ── Markdown styles ──────────────────────────────────── */
     .md-body { animation: fadeIn 0.25s ease; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
 
-    .md-body h1, .md-body h2, .md-body h3,
-    .md-body h4, .md-body h5, .md-body h6 {
-      font-family: var(--font-body);
-      font-weight: 700;
-      line-height: 1.2;
-      text-wrap: balance;
-      color: var(--color-text);
+    .md-body h1,.md-body h2,.md-body h3,.md-body h4,.md-body h5,.md-body h6 {
+      font-family: var(--font); font-weight: 700; line-height: 1.2;
+      text-wrap: balance; color: var(--text);
     }
-    .md-body h1 { font-size: var(--text-2xl); margin-bottom: var(--space-6); margin-top: 0; }
-    .md-body h2 { font-size: var(--text-xl);  margin-top: var(--space-12); margin-bottom: var(--space-4); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-divider); }
-    .md-body h3 { font-size: var(--text-lg);  margin-top: var(--space-8);  margin-bottom: var(--space-3); }
-    .md-body h4 { font-size: var(--text-base); font-weight: 600; margin-top: var(--space-6); margin-bottom: var(--space-2); }
-    .md-body h5, .md-body h6 { font-size: var(--text-sm); font-weight: 600; margin-top: var(--space-4); margin-bottom: var(--space-2); color: var(--color-text-muted); }
+    .md-body h1 { font-size: var(--t2xl); margin-bottom: 1.5rem; margin-top: 0; }
+    .md-body h2 { font-size: var(--txl); margin-top: 3rem; margin-bottom: 1rem;
+      padding-bottom: 0.5rem; border-bottom: 1px solid var(--divider); }
+    .md-body h3 { font-size: var(--tl); margin-top: 2rem; margin-bottom: 0.75rem; }
+    .md-body h4 { font-size: var(--tb); font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+    .md-body h5,.md-body h6 { font-size: var(--ts); font-weight: 600;
+      margin-top: 1rem; margin-bottom: 0.5rem; color: var(--muted); }
 
-    .md-body p { margin-bottom: var(--space-4); max-width: 72ch; }
+    .md-body p { margin-bottom: 1rem; max-width: 72ch; }
     .md-body p:last-child { margin-bottom: 0; }
-
-    .md-body a {
-      color: var(--color-primary);
-      text-decoration: underline;
-      text-decoration-color: color-mix(in oklab, var(--color-primary) 40%, transparent);
-      text-underline-offset: 3px;
-    }
-    .md-body a:hover {
-      color: var(--color-primary-hover);
-      text-decoration-color: var(--color-primary-hover);
-    }
-
+    .md-body a { color: var(--primary); text-decoration: underline;
+      text-decoration-color: color-mix(in oklab, var(--primary) 40%, transparent);
+      text-underline-offset: 3px; }
+    .md-body a:hover { color: var(--primary-h); text-decoration-color: var(--primary-h); }
     .md-body strong { font-weight: 700; }
     .md-body em { font-style: italic; }
-    .md-body del { text-decoration: line-through; color: var(--color-text-muted); }
+    .md-body del { text-decoration: line-through; color: var(--muted); }
 
-    .md-body ul, .md-body ol {
-      padding-left: var(--space-6);
-      margin-bottom: var(--space-4);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-1);
+    .md-body ul,.md-body ol {
+      padding-left: 1.5rem; margin-bottom: 1rem;
+      display: flex; flex-direction: column; gap: 0.25rem;
     }
     .md-body li { max-width: 72ch; }
-    .md-body li > ul, .md-body li > ol { margin-top: var(--space-1); margin-bottom: 0; }
-    .md-body ul { list-style: disc; }
-    .md-body ol { list-style: decimal; }
+    .md-body li > ul,.md-body li > ol { margin-top: 0.25rem; margin-bottom: 0; }
+    .md-body ul { list-style: disc; } .md-body ol { list-style: decimal; }
 
     .md-body blockquote {
-      border-left: 3px solid var(--color-primary);
-      background: var(--color-surface);
-      padding: var(--space-3) var(--space-5);
-      border-radius: 0 var(--radius-md) var(--radius-md) 0;
-      margin: var(--space-6) 0;
-      color: var(--color-text-muted);
+      border-left: 3px solid var(--primary); background: var(--surface);
+      padding: 0.75rem 1.25rem; border-radius: 0 var(--r-md) var(--r-md) 0;
+      margin: 1.5rem 0; color: var(--muted);
     }
     .md-body blockquote p { margin-bottom: 0; }
 
-    /* Inline code */
     .md-body :not(pre) > code {
-      font-family: var(--font-mono);
-      font-size: 0.875em;
-      background: var(--color-code-bg);
-      border: 1px solid var(--color-divider);
-      border-radius: var(--radius-sm);
-      padding: 0.15em 0.4em;
-      color: var(--color-text);
+      font-family: var(--mono); font-size: 0.875em;
+      background: var(--code-bg); border: 1px solid var(--divider);
+      border-radius: var(--r-sm); padding: 0.15em 0.4em; color: var(--text);
     }
-
-    /* Code blocks */
     .md-body pre {
-      background: var(--color-surface-2);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      margin: var(--space-6) 0;
-      box-shadow: var(--shadow-sm);
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--r-lg); overflow: hidden; margin: 1.5rem 0; box-shadow: var(--shadow-sm);
     }
     .code-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--space-2) var(--space-4);
-      border-bottom: 1px solid var(--color-border);
-      background: var(--color-surface);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.5rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface);
     }
-    .code-lang {
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
-      color: var(--color-text-faint);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
+    .code-lang { font-family: var(--mono); font-size: var(--tx); color: var(--faint);
+      text-transform: uppercase; letter-spacing: 0.06em; }
     .btn-copy {
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      display: flex;
-      align-items: center;
-      gap: var(--space-1);
-      padding: var(--space-1) var(--space-2);
-      border-radius: var(--radius-sm);
+      font-size: var(--tx); color: var(--muted);
+      display: flex; align-items: center; gap: 0.25rem;
+      padding: 0.25rem 0.5rem; border-radius: var(--r-sm);
     }
-    .btn-copy:hover { background: var(--color-surface-offset); color: var(--color-text); }
-    .btn-copy.copied { color: var(--color-primary); }
-
+    .btn-copy:hover { background: var(--surface-off); color: var(--text); }
+    .btn-copy.copied { color: var(--primary); }
     .md-body pre code {
-      display: block;
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
-      line-height: 1.7;
-      padding: var(--space-4);
-      overflow-x: auto;
-      background: transparent !important;
-      border: none !important;
+      display: block; font-family: var(--mono); font-size: var(--tx);
+      line-height: 1.7; padding: 1rem; overflow-x: auto;
+      background: transparent !important; border: none !important;
     }
 
     /* Tables */
     .md-body .table-wrap {
-      overflow-x: auto;
-      margin: var(--space-6) 0;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--color-border);
-      box-shadow: var(--shadow-sm);
-      -webkit-overflow-scrolling: touch;
+      overflow-x: auto; margin: 1.5rem 0;
+      border-radius: var(--r-lg); border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm); -webkit-overflow-scrolling: touch;
     }
-    /* Scrollbar styling for table */
     .md-body .table-wrap::-webkit-scrollbar { height: 5px; }
-    .md-body .table-wrap::-webkit-scrollbar-track { background: var(--color-surface); }
-    .md-body .table-wrap::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 99px; }
-
-    .md-body table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); white-space: nowrap; }
-    .md-body thead { background: var(--color-surface); position: sticky; top: 0; z-index: 1; }
+    .md-body .table-wrap::-webkit-scrollbar-track { background: var(--surface); }
+    .md-body .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    .md-body table { width: 100%; border-collapse: collapse; font-size: var(--tx); white-space: nowrap; }
+    .md-body thead { background: var(--surface); position: sticky; top: 0; z-index: 1; }
     .md-body th {
-      padding: var(--space-2) var(--space-3);
-      text-align: left;
-      font-weight: 600;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--color-text-muted);
-      border-bottom: 1px solid var(--color-border);
-      white-space: nowrap;
+      padding: 0.4rem 0.75rem; text-align: left; font-weight: 600;
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap;
     }
     .md-body td {
-      padding: var(--space-2) var(--space-3);
-      border-bottom: 1px solid var(--color-divider);
-      color: var(--color-text);
-      vertical-align: middle;
-      white-space: nowrap;
+      padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--divider);
+      color: var(--text); vertical-align: middle; white-space: nowrap;
     }
     .md-body tbody tr:last-child td { border-bottom: none; }
-    .md-body tbody tr:hover { background: var(--color-surface); }
+    .md-body tbody tr:hover { background: var(--surface); }
+    .md-body hr { border: none; border-top: 1px solid var(--divider); margin: 2.5rem 0; }
+    .md-body img { border-radius: var(--r-md); box-shadow: var(--shadow-md); margin: 1.5rem 0; max-width: 100%; }
+    .md-body input[type="checkbox"] { accent-color: var(--primary); width: 1em; height: 1em; margin-right: 0.5rem; }
 
-    /* Compact mode */
-    .compact .md-body { font-size: var(--text-sm); }
-    .compact .main-wrap { max-width: 100%; padding: var(--space-4) var(--space-4); }
-    .compact .md-body h1 { font-size: var(--text-xl); }
-    .compact .md-body h2 { font-size: var(--text-lg); margin-top: var(--space-8); }
-    .compact .md-body h3 { font-size: var(--text-base); margin-top: var(--space-6); }
+    /* ── Compact mode ─────────────────────────────────────── */
+    .compact .md-body { font-size: var(--ts); }
+    .compact .main-wrap { max-width: 100%; padding: 1rem; }
+    .compact .md-body h1 { font-size: var(--txl); }
+    .compact .md-body h2 { font-size: var(--tl); margin-top: 2rem; }
+    .compact .md-body h3 { font-size: var(--tb); margin-top: 1.5rem; }
     .compact .md-body table { font-size: 0.72rem; }
-    .compact .md-body th  { font-size: 0.65rem; padding: 3px var(--space-2); }
-    .compact .md-body td  { padding: 3px var(--space-2); }
-    .compact .md-body p, .compact .md-body li { max-width: 100%; }
+    .compact .md-body th { font-size: 0.65rem; padding: 3px 0.5rem; }
+    .compact .md-body td { padding: 3px 0.5rem; }
+    .compact .md-body p,.compact .md-body li { max-width: 100%; }
+    .compact .json-viewer { font-size: 0.75rem; }
 
-    .md-body hr {
-      border: none;
-      border-top: 1px solid var(--color-divider);
-      margin: var(--space-10) 0;
+    /* ── JSON Viewer ──────────────────────────────────────── */
+    .json-wrap { animation: fadeIn 0.25s ease; }
+
+    .json-toolbar {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin-bottom: 1rem; flex-wrap: wrap;
     }
-
-    .md-body img {
-      border-radius: var(--radius-md);
-      box-shadow: var(--shadow-md);
-      margin: var(--space-6) 0;
-      max-width: 100%;
+    .json-toolbar-btn {
+      font-size: var(--tx); font-weight: 500;
+      padding: 0.25rem 0.65rem; border-radius: var(--r-sm);
+      border: 1px solid var(--border); color: var(--muted);
+      background: var(--surface);
     }
+    .json-toolbar-btn:hover { background: var(--surface-off); color: var(--text); border-color: var(--muted); }
 
-    /* Task lists */
-    .md-body input[type="checkbox"] {
-      accent-color: var(--color-primary);
-      width: 1em;
-      height: 1em;
-      margin-right: var(--space-2);
+    .json-search-wrap {
+      display: flex; align-items: center; gap: 0.35rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-sm); padding: 0.2rem 0.5rem;
+      transition: border-color var(--tr), box-shadow var(--tr);
     }
+    .json-search-wrap:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 15%, transparent);
+    }
+    .json-search { border: none; outline: none; background: transparent; font-size: var(--tx);
+      color: var(--text); width: 160px; font-family: var(--font); }
+    .json-search::placeholder { color: var(--faint); }
+    .json-match-count { font-size: var(--tx); color: var(--muted); white-space: nowrap; }
 
-    /* ── Responsive ─────────────────────────────────────────── */
+    .json-viewer {
+      font-family: var(--mono); font-size: 0.8rem; line-height: 1.65;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 1rem 1.25rem;
+      overflow-x: auto; box-shadow: var(--shadow-sm);
+    }
+    .json-viewer::-webkit-scrollbar { height: 5px; width: 5px; }
+    .json-viewer::-webkit-scrollbar-track { background: var(--surface); }
+    .json-viewer::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+    /* Node */
+    .jn { display: block; position: relative; }
+    .jn-inner { padding-left: 1.4em; }
+
+    /* Toggle arrow */
+    .jn-toggle {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.1em; height: 1.1em;
+      border-radius: 3px; cursor: pointer;
+      color: var(--muted); vertical-align: middle; margin-right: 0.15em;
+      flex-shrink: 0; user-select: none;
+      transition: background var(--tr), color var(--tr), transform var(--tr);
+    }
+    .jn-toggle:hover { background: var(--surface-off); color: var(--text); }
+    .jn-toggle.collapsed { transform: rotate(-90deg); }
+    .jn-toggle svg { pointer-events: none; }
+
+    /* Spacer for leaf nodes */
+    .jn-spacer { display: inline-block; width: 1.25em; }
+
+    .jn-key { color: var(--j-key); font-weight: 500; }
+    .jn-colon { color: var(--muted); margin: 0 0.2em; }
+    .jn-bracket { color: var(--muted); font-weight: 600; }
+    .jn-str  { color: var(--j-str); }
+    .jn-num  { color: var(--j-num); }
+    .jn-bool { color: var(--j-bool); font-style: italic; }
+    .jn-null { color: var(--j-null); font-style: italic; }
+    .jn-meta { color: var(--j-meta); font-size: 0.85em; margin-left: 0.4em; }
+
+    /* Collapsed preview */
+    .jn-preview { color: var(--muted); font-size: 0.85em; }
+    .jn-collapsed > .jn-inner { display: none; }
+
+    /* Search highlight */
+    .jn-hl { background: color-mix(in oklab, #f5c030 55%, transparent);
+      color: var(--text); border-radius: 2px; }
+    .jn-hl.current { background: #f5c030; outline: 1px solid #c49200; }
+
+    /* ── Responsive ───────────────────────────────────────── */
     @media (max-width: 600px) {
-      .app-header { padding: var(--space-2) var(--space-4); flex-wrap: wrap; gap: var(--space-2); }
+      .app-header { padding: 0.4rem 1rem; flex-wrap: wrap; gap: 0.4rem; }
       .url-input { width: 100%; }
       .url-input-wrap { flex: 1; }
-      .main-wrap { padding: var(--space-8) var(--space-4); }
+      .main-wrap { padding: 2rem 1rem; }
     }
   </style>
 </head>
 <body>
 
-  <!-- ── Header ─────────────────────────────────────────────── -->
   <header class="app-header">
     <a class="app-logo" href="?">
-      <!-- SVG logo: minimal document mark -->
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
         <rect x="3" y="1" width="13" height="17" rx="2" stroke="currentColor" stroke-width="1.5"/>
         <path d="M16 5l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M6 7h7M6 10h5M6 13h6" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
       </svg>
-      MD Viewer
+      File Viewer
     </a>
 
     <div class="header-right">
+      <span class="file-badge" id="fileBadge"></span>
+
       <div class="url-input-wrap">
         <svg class="url-input-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
         </svg>
-        <input
-          class="url-input"
-          id="urlInput"
-          type="url"
-          placeholder="https://example.com/README.md"
-          spellcheck="false"
-          autocomplete="off"
-          aria-label="URL файла Markdown"
-        >
-        <button class="btn-load" id="btnLoad" aria-label="Загрузить">Открыть</button>
+        <input class="url-input" id="urlInput" type="url"
+          placeholder="https://example.com/file.md или .json"
+          spellcheck="false" autocomplete="off" aria-label="URL файла">
+        <button class="btn-load" id="btnLoad">Открыть</button>
       </div>
 
-      <!-- Compact mode toggle -->
-      <button class="btn-icon" id="compactToggle" aria-label="Компактный режим" title="Компактный режим">
+      <button class="btn-icon" id="compactToggle" title="Компактный вид">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
         </svg>
       </button>
 
-      <!-- Dark mode toggle -->
-      <button class="btn-icon" id="themeToggle" aria-label="Сменить тему" title="Сменить тему">
+      <button class="btn-icon" id="themeToggle" title="Тема">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
@@ -490,246 +424,398 @@
     </div>
   </header>
 
-  <!-- ── Content ──────────────────────────────────────────── -->
   <main class="main-wrap">
     <div id="content">
-      <!-- Initial empty state -->
       <div class="state-box" id="emptyState">
-        <svg class="state-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true">
+        <svg class="state-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <polyline points="10 9 9 9 8 9"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
-        <p class="state-title">Вставь ссылку на .md файл</p>
-        <p class="state-desc">Передай URL через параметр <code>?url=</code> или вставь в поле выше</p>
+        <p class="state-title">Вставь ссылку на файл</p>
+        <p class="state-desc">Поддерживаются <strong>.md</strong> и <strong>.json</strong>. Передай URL через параметр <code>?url=</code> или вставь в поле выше.</p>
       </div>
     </div>
   </main>
 
-  <script>
-  (function () {
-    'use strict';
+<script>
+(function () {
+'use strict';
 
-    /* ── Theme ─────────────────────────────────────────────── */
-    const html = document.documentElement;
-    const toggle = document.getElementById('themeToggle');
+/* ── Theme ──────────────────────────────────────────────── */
+const html = document.documentElement;
+const themeBtn = document.getElementById('themeToggle');
+let theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+html.setAttribute('data-theme', theme);
+syncHljs(theme);
 
-    let theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    html.setAttribute('data-theme', theme);
-    syncHljsTheme(theme);
+themeBtn.addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', theme);
+  syncHljs(theme);
+  themeBtn.innerHTML = theme === 'dark'
+    ? '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+    : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+});
+function syncHljs(t) {
+  document.getElementById('hljs-theme-dark').disabled  = (t !== 'dark');
+  document.getElementById('hljs-theme-light').disabled = (t !== 'light');
+}
 
-    toggle.addEventListener('click', () => {
-      theme = theme === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', theme);
-      syncHljsTheme(theme);
-      updateThemeIcon();
-    });
+/* ── Compact ────────────────────────────────────────────── */
+const compactBtn = document.getElementById('compactToggle');
+let compact = false;
+compactBtn.addEventListener('click', () => {
+  compact = !compact;
+  document.body.classList.toggle('compact', compact);
+  compactBtn.classList.toggle('active', compact);
+  compactBtn.title = compact ? 'Обычный вид' : 'Компактный вид';
+});
 
-    function syncHljsTheme(t) {
-      document.getElementById('hljs-theme-dark').disabled  = (t !== 'dark');
-      document.getElementById('hljs-theme-light').disabled = (t !== 'light');
-    }
+/* ── Helpers ────────────────────────────────────────────── */
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
-    const MOON_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
-    const SUN_ICON  = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+/* ── Marked (Markdown) ──────────────────────────────────── */
+marked.use({
+  gfm: true, breaks: false,
+  renderer: (() => {
+    const r = new marked.Renderer();
+    r.table = (header, body) =>
+      `<div class="table-wrap"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
+    r.code = (code, lang) => {
+      const vl = lang && hljs.getLanguage(lang) ? lang : null;
+      const hi = vl ? hljs.highlight(code, {language: vl}).value : hljs.highlightAuto(code).value;
+      const dl = vl || 'auto';
+      const ec = esc(code).replace(/"/g,'&quot;');
+      return `<pre><div class="code-header"><span class="code-lang">${esc(dl)}</span>` +
+        `<button class="btn-copy" data-code="${ec}">` +
+        `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>` +
+        ` Копировать</button></div>` +
+        `<code class="hljs language-${esc(dl)}">${hi}</code></pre>`;
+    };
+    return r;
+  })()
+});
 
-    function updateThemeIcon() {
-      toggle.innerHTML = theme === 'dark' ? MOON_ICON : SUN_ICON;
-      toggle.setAttribute('aria-label', theme === 'dark' ? 'Светлая тема' : 'Тёмная тема');
-    }
-    updateThemeIcon();
+/* copy button delegation */
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.btn-copy');
+  if (!btn) return;
+  const code = (btn.dataset.code||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+  navigator.clipboard.writeText(code).then(() => {
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Скопировано';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Копировать';
+    }, 2000);
+  });
+});
 
-    /* ── Compact mode ───────────────────────────────────────── */
-    const compactBtn = document.getElementById('compactToggle');
-    let compact = false;
-    const COMPACT_ICON   = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
-    const EXPANDED_ICON  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="4" x2="21" y2="4"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="20" x2="21" y2="20"/></svg>';
+/* ── JSON Viewer ────────────────────────────────────────── */
+function buildJsonNode(value, key, depth) {
+  const type = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+  const isContainer = type === 'object' || type === 'array';
 
-    compactBtn.addEventListener('click', () => {
-      compact = !compact;
-      document.body.classList.toggle('compact', compact);
-      compactBtn.innerHTML = compact ? EXPANDED_ICON : COMPACT_ICON;
-      compactBtn.setAttribute('title', compact ? 'Обычный вид' : 'Компактный вид');
-      compactBtn.style.color = compact ? 'var(--color-primary)' : '';
-    });
+  const keyHtml = key !== null
+    ? `<span class="jn-key">"${esc(String(key))}"</span><span class="jn-colon">:</span>`
+    : '';
 
-    /* ── Marked setup ────────────────────────────────────────── */
-    marked.use({
-      gfm: true,
-      breaks: false,
-      renderer: (() => {
-        const r = new marked.Renderer();
+  if (!isContainer) {
+    let valHtml;
+    if (type === 'string')  valHtml = `<span class="jn-str">"${esc(value)}"</span>`;
+    else if (type === 'number')  valHtml = `<span class="jn-num">${esc(String(value))}</span>`;
+    else if (type === 'boolean') valHtml = `<span class="jn-bool">${value}</span>`;
+    else if (type === 'null')    valHtml = `<span class="jn-null">null</span>`;
+    else valHtml = `<span class="jn-str">"${esc(String(value))}"</span>`;
 
-        // Wrap tables
-        r.table = function(header, body) {
-          return `<div class="table-wrap"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
-        };
+    return `<span class="jn"><span class="jn-spacer"></span>${keyHtml}${valHtml}</span>`;
+  }
 
-        // Code blocks with header + copy button
-        r.code = function(code, lang) {
-          const validLang = lang && hljs.getLanguage(lang) ? lang : null;
-          const highlighted = validLang
-            ? hljs.highlight(code, { language: validLang }).value
-            : hljs.highlightAuto(code).value;
-          const detectedLang = validLang || 'auto';
-          const escapedCode = escHtml(code);
+  const isArr   = type === 'array';
+  const entries = isArr ? value : Object.entries(value);
+  const count   = isArr ? value.length : entries.length;
+  const ob = isArr ? '[' : '{';
+  const cb = isArr ? ']' : '}';
+  const metaLabel = isArr
+    ? `${count} ${count === 1 ? 'элемент' : count < 5 ? 'элемента' : 'элементов'}`
+    : `${count} ${count === 1 ? 'ключ' : count < 5 ? 'ключа' : 'ключей'}`;
+  const previewItems = isArr
+    ? value.slice(0, 3).map(v => typeof v === 'string' ? `"${esc(String(v).slice(0,20))}"` : esc(String(v))).join(', ')
+    : entries.slice(0, 3).map(([k]) => `"${esc(k)}"`).join(', ');
+  const preview = count > 0 ? previewItems + (count > 3 ? ', …' : '') : '';
 
-          return `<pre><div class="code-header">
-            <span class="code-lang">${escHtml(detectedLang)}</span>
-            <button class="btn-copy" data-code="${escapedCode.replace(/"/g,'&quot;')}" title="Скопировать">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              Копировать
-            </button>
-          </div><code class="hljs language-${escHtml(detectedLang)}">${highlighted}</code></pre>`;
-        };
+  const childrenHtml = isArr
+    ? value.map((v, i) => buildJsonNode(v, null, depth + 1)).join('\n')
+    : entries.map(([k, v]) => buildJsonNode(v, k, depth + 1)).join('\n');
 
-        return r;
-      })()
-    });
+  const autoCollapsed = depth >= 2;
 
-    function escHtml(s) {
-      return String(s)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
+  return `<span class="jn${autoCollapsed ? ' jn-collapsed' : ''}">` +
+    `<button class="jn-toggle${autoCollapsed ? ' collapsed' : ''}" aria-label="свернуть/развернуть">` +
+    `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 3l3 4 3-4z"/></svg>` +
+    `</button>` +
+    `${keyHtml}<span class="jn-bracket">${ob}</span>` +
+    `<span class="jn-meta">${metaLabel}</span>` +
+    `<span class="jn-preview"> ${preview}</span>` +
+    `<span class="jn-inner">\n${childrenHtml}\n</span>` +
+    `<span class="jn-bracket">${cb}</span>` +
+    `</span>`;
+}
 
-    /* ── Copy buttons (delegated) ─────────────────────────────── */
-    document.addEventListener('click', e => {
-      const btn = e.target.closest('.btn-copy');
-      if (!btn) return;
-      const code = btn.dataset.code
-        .replace(/&amp;/g,'&').replace(/&lt;/g,'<')
-        .replace(/&gt;/g,'>').replace(/&quot;/g,'"');
-      navigator.clipboard.writeText(code).then(() => {
-        btn.classList.add('copied');
-        btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Скопировано';
-        setTimeout(() => {
-          btn.classList.remove('copied');
-          btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Копировать';
-        }, 2000);
-      });
-    });
+function renderJson(data) {
+  const totalKeys = countNodes(data);
+  const html = buildJsonNode(data, null, 0);
 
-    /* ── URL input & loading ─────────────────────────────────── */
-    const urlInput = document.getElementById('urlInput');
-    const btnLoad  = document.getElementById('btnLoad');
-    const content  = document.getElementById('content');
+  const copyAllCode = esc(JSON.stringify(data, null, 2)).replace(/"/g, '&quot;');
 
-    function getParam(name) {
-      return new URLSearchParams(location.search).get(name);
-    }
-
-    function setParam(url) {
-      const sp = new URLSearchParams(location.search);
-      sp.set('url', url);
-      history.pushState({}, '', '?' + sp.toString());
-      document.title = 'MD Viewer — ' + url.split('/').pop();
-    }
-
-    function showSkeleton() {
-      content.innerHTML = `<div class="skeleton-wrap">
-        <div class="skeleton sk-h1"></div>
-        <div class="skeleton sk-p"></div>
-        <div class="skeleton sk-p mid"></div>
-        <div class="skeleton sk-p short"></div>
-        <div class="skeleton sk-h2"></div>
-        <div class="skeleton sk-p"></div>
-        <div class="skeleton sk-p mid"></div>
-        <div class="skeleton sk-p"></div>
-        <div class="skeleton sk-p short"></div>
-        <div class="skeleton sk-h2"></div>
-        <div class="skeleton sk-p"></div>
-        <div class="skeleton sk-p mid"></div>
-      </div>`;
-    }
-
-    function showError(msg) {
-      content.innerHTML = `<div class="state-box error">
-        <svg class="state-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
+  return `<div class="json-wrap">
+    <div class="json-toolbar">
+      <button class="json-toolbar-btn" id="jExpandAll">Развернуть всё</button>
+      <button class="json-toolbar-btn" id="jCollapseAll">Свернуть всё</button>
+      <div class="json-search-wrap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
-        <p class="state-title">Ошибка загрузки</p>
-        <p class="state-desc">${escHtml(msg)}</p>
-      </div>`;
-    }
+        <input class="json-search" id="jSearch" placeholder="Поиск по ключам/значениям…" autocomplete="off">
+      </div>
+      <span class="json-match-count" id="jMatchCount"></span>
+      <button class="json-toolbar-btn" id="jCopyAll" data-code="${copyAllCode}" style="margin-left:auto">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:3px"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Копировать JSON
+      </button>
+    </div>
+    <div class="json-viewer" id="jsonViewer">${html}</div>
+  </div>`;
+}
 
-    // CORS proxies to try in order
-    const PROXIES = [
-      url => url,                                                          // 1. direct
-      url => 'https://cors.eu.org/' + url,                                // 2. cors.eu.org
-      url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url), // 3. allorigins
-      url => 'https://corsproxy.org/?' + encodeURIComponent(url),         // 4. corsproxy.org
-    ];
+function countNodes(v, d=0) {
+  if (d > 30) return 1;
+  if (v && typeof v === 'object') {
+    const entries = Array.isArray(v) ? v : Object.values(v);
+    return entries.reduce((s, c) => s + countNodes(c, d+1), 1);
+  }
+  return 1;
+}
 
-    async function fetchWithFallback(url) {
-      let lastErr;
-      for (const proxy of PROXIES) {
-        const proxied = proxy(url);
-        try {
-          const resp = await fetch(proxied, { signal: AbortSignal.timeout(12000) });
-          if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
-          const text = await resp.text();
-          return text;
-        } catch (err) {
-          lastErr = err;
-          // network error or timeout — try next proxy
-        }
-      }
-      throw lastErr;
-    }
+/* Toggle collapse/expand on click */
+document.addEventListener('click', e => {
+  const tog = e.target.closest('.jn-toggle');
+  if (!tog) return;
+  const node = tog.closest('.jn');
+  node.classList.toggle('jn-collapsed');
+  tog.classList.toggle('collapsed');
+});
 
-    async function loadMarkdown(rawUrl) {
-      if (!rawUrl) return;
-      rawUrl = rawUrl.trim();
-
-      // Validate looks like a URL
-      if (!/^https?:\/\//i.test(rawUrl)) {
-        showError('URL должен начинаться с http:// или https://');
-        return;
-      }
-
-      // Auto-convert GitHub blob → raw
-      rawUrl = rawUrl
-        .replace(/^https:\/\/github\.com\/(.+?)\/blob\//, 'https://raw.githubusercontent.com/$1/')
-        .replace(/^https:\/\/gitlab\.com\/(.+?)\/-\/blob\//, 'https://gitlab.com/$1/-/raw/');
-
-      urlInput.value = rawUrl;
-      showSkeleton();
-
-      try {
-        const text = await fetchWithFallback(rawUrl);
-        const html  = marked.parse(text);
-        content.innerHTML = '<article class="md-body">' + html + '</article>';
-        setParam(rawUrl);
-        document.title = 'MD Viewer — ' + rawUrl.split('/').pop().replace(/\.md$/i,'');
-      } catch (err) {
-        showError((err.message || 'Неизвестная ошибка') + '<br><small style="opacity:.6">URL: ' + escHtml(rawUrl) + '</small>');
-      }
-    }
-
-    btnLoad.addEventListener('click', () => loadMarkdown(urlInput.value));
-    urlInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') loadMarkdown(urlInput.value);
+/* Expand / collapse all */
+document.addEventListener('click', e => {
+  if (e.target.id === 'jExpandAll') {
+    document.querySelectorAll('.jn').forEach(n => { n.classList.remove('jn-collapsed'); });
+    document.querySelectorAll('.jn-toggle').forEach(t => t.classList.remove('collapsed'));
+  }
+  if (e.target.id === 'jCollapseAll') {
+    document.querySelectorAll('.jn').forEach(n => { n.classList.add('jn-collapsed'); });
+    document.querySelectorAll('.jn-toggle').forEach(t => t.classList.add('collapsed'));
+  }
+  if (e.target.id === 'jCopyAll') {
+    const code = (e.target.dataset.code||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = e.target;
+      const prev = btn.innerHTML;
+      btn.innerHTML = '✓ Скопировано';
+      setTimeout(() => { btn.innerHTML = prev; }, 2000);
     });
+  }
+});
 
-    // Auto-load from ?url= on page load
-    const initUrl = getParam('url');
-    if (initUrl) {
-      urlInput.value = initUrl;
-      loadMarkdown(initUrl);
+/* JSON search */
+let searchMatches = [], searchIdx = 0;
+document.addEventListener('input', e => {
+  if (e.target.id !== 'jSearch') return;
+  const q = e.target.value.trim().toLowerCase();
+  const viewer = document.getElementById('jsonViewer');
+  const countEl = document.getElementById('jMatchCount');
+  if (!viewer) return;
+
+  // remove old highlights
+  viewer.querySelectorAll('.jn-hl').forEach(el => {
+    el.outerHTML = el.textContent;
+  });
+  searchMatches = []; searchIdx = 0;
+
+  if (!q) { countEl && (countEl.textContent = ''); return; }
+
+  // highlight matches in text nodes
+  function walkHighlight(node) {
+    if (node.nodeType === 3) {
+      const idx = node.textContent.toLowerCase().indexOf(q);
+      if (idx === -1) return;
+      const span = document.createElement('span');
+      const before = document.createTextNode(node.textContent.slice(0, idx));
+      const match  = document.createElement('mark');
+      match.className = 'jn-hl';
+      match.textContent = node.textContent.slice(idx, idx + q.length);
+      const after = document.createTextNode(node.textContent.slice(idx + q.length));
+      span.appendChild(before); span.appendChild(match); span.appendChild(after);
+      node.parentNode.replaceChild(span, node);
+      searchMatches.push(match);
+    } else if (node.nodeType === 1 && !['SCRIPT','STYLE'].includes(node.tagName)) {
+      Array.from(node.childNodes).forEach(walkHighlight);
+    }
+  }
+  walkHighlight(viewer);
+
+  // expand parents of matches
+  searchMatches.forEach(m => {
+    let p = m.closest('.jn');
+    while (p) {
+      p.classList.remove('jn-collapsed');
+      const t = p.querySelector(':scope > .jn-toggle');
+      if (t) t.classList.remove('collapsed');
+      p = p.parentElement && p.parentElement.closest('.jn');
+    }
+  });
+
+  if (searchMatches.length > 0) {
+    searchMatches[0].classList.add('current');
+    searchMatches[0].scrollIntoView({ block: 'nearest' });
+    countEl && (countEl.textContent = `1 / ${searchMatches.length}`);
+  } else {
+    countEl && (countEl.textContent = 'Нет совпадений');
+  }
+});
+
+/* Enter to cycle through matches */
+document.addEventListener('keydown', e => {
+  if (e.target.id !== 'jSearch' || searchMatches.length === 0) return;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    searchMatches[searchIdx].classList.remove('current');
+    searchIdx = (searchIdx + (e.shiftKey ? -1 : 1) + searchMatches.length) % searchMatches.length;
+    searchMatches[searchIdx].classList.add('current');
+    searchMatches[searchIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const countEl = document.getElementById('jMatchCount');
+    if (countEl) countEl.textContent = `${searchIdx + 1} / ${searchMatches.length}`;
+  }
+});
+
+/* ── Fetch helpers ──────────────────────────────────────── */
+const PROXIES = [
+  url => url,
+  url => 'https://cors.eu.org/' + url,
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => 'https://corsproxy.org/?' + encodeURIComponent(url),
+];
+
+async function fetchWithFallback(url) {
+  let lastErr;
+  for (const proxy of PROXIES) {
+    try {
+      const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(12000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
+      return await resp.text();
+    } catch (err) { lastErr = err; }
+  }
+  throw lastErr;
+}
+
+/* ── Loader ─────────────────────────────────────────────── */
+const urlInput  = document.getElementById('urlInput');
+const btnLoad   = document.getElementById('btnLoad');
+const content   = document.getElementById('content');
+const fileBadge = document.getElementById('fileBadge');
+
+function getParam(n) { return new URLSearchParams(location.search).get(n); }
+function setParam(url) {
+  const sp = new URLSearchParams(location.search);
+  sp.set('url', url);
+  history.pushState({}, '', '?' + sp.toString());
+}
+
+function showSkeleton() {
+  fileBadge.className = 'file-badge';
+  content.innerHTML = `<div class="skeleton-wrap">
+    <div class="skeleton sk-h1"></div>
+    <div class="skeleton sk-p"></div><div class="skeleton sk-p mid"></div><div class="skeleton sk-p short"></div>
+    <div class="skeleton sk-h2"></div>
+    <div class="skeleton sk-p"></div><div class="skeleton sk-p mid"></div><div class="skeleton sk-p short"></div>
+  </div>`;
+}
+
+function showError(msg) {
+  fileBadge.className = 'file-badge';
+  content.innerHTML = `<div class="state-box error">
+    <svg class="state-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <p class="state-title">Ошибка загрузки</p>
+    <p class="state-desc">${msg}</p>
+  </div>`;
+}
+
+function detectType(url, text) {
+  const ext = url.split('?')[0].split('#')[0].toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  if (ext === 'json') return 'json';
+  if (ext === 'md' || ext === 'markdown') return 'md';
+  // sniff content
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return 'json';
+  return 'md';
+}
+
+async function loadFile(rawUrl) {
+  if (!rawUrl) return;
+  rawUrl = rawUrl.trim();
+  if (!/^https?:\/\//i.test(rawUrl)) { showError('URL должен начинаться с http:// или https://'); return; }
+
+  rawUrl = rawUrl
+    .replace(/^https:\/\/github\.com\/(.+?)\/blob\//, 'https://raw.githubusercontent.com/$1/')
+    .replace(/^https:\/\/gitlab\.com\/(.+?)\/-\/blob\//, 'https://gitlab.com/$1/-/raw/');
+
+  urlInput.value = rawUrl;
+  showSkeleton();
+
+  try {
+    const text = await fetchWithFallback(rawUrl);
+    const type = detectType(rawUrl, text);
+    const fileName = rawUrl.split('/').pop().split('?')[0];
+
+    // update badge
+    fileBadge.textContent = type.toUpperCase();
+    fileBadge.className = `file-badge visible ${type}`;
+
+    if (type === 'json') {
+      let data;
+      try { data = JSON.parse(text); }
+      catch(e) { showError('Файл выглядит как JSON, но содержит ошибку:<br><code>' + esc(e.message) + '</code>'); return; }
+      content.innerHTML = renderJson(data);
+      document.title = 'JSON — ' + fileName;
+    } else {
+      content.innerHTML = '<article class="md-body">' + marked.parse(text) + '</article>';
+      document.title = 'MD — ' + fileName.replace(/\.md$/i, '');
     }
 
-    // Handle browser back/forward
-    window.addEventListener('popstate', () => {
-      const u = getParam('url');
-      if (u) { urlInput.value = u; loadMarkdown(u); }
-    });
+    setParam(rawUrl);
+  } catch (err) {
+    showError(esc(err.message || 'Неизвестная ошибка') + '<br><small style="opacity:.6">URL: ' + esc(rawUrl) + '</small>');
+  }
+}
 
-  })();
-  </script>
+btnLoad.addEventListener('click', () => loadFile(urlInput.value));
+urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadFile(urlInput.value); });
+
+const initUrl = getParam('url');
+if (initUrl) { urlInput.value = initUrl; loadFile(initUrl); }
+
+window.addEventListener('popstate', () => {
+  const u = getParam('url');
+  if (u) { urlInput.value = u; loadFile(u); }
+});
+
+})();
+</script>
 </body>
 </html>
