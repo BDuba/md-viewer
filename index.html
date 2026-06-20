@@ -138,6 +138,7 @@
       font-family: var(--mono);
     }
     .url-input::placeholder { color: var(--faint); font-family: var(--font); }
+    .file-input-hidden { display: none; }
     .btn-load {
       background: var(--primary); color: #fff;
       font-size: var(--tx); font-weight: 600;
@@ -408,6 +409,7 @@
           placeholder="https://example.com/file.md или .json"
           spellcheck="false" autocomplete="off" aria-label="URL файла">
         <button class="btn-load" id="btnLoad">Открыть</button>
+        <input type="file" class="file-input-hidden" id="fileInput" accept=".md,.json,text/markdown,application/json" aria-label="Выбрать локальный файл">
       </div>
 
       <button class="btn-icon" id="compactToggle" title="Компактный вид">
@@ -432,8 +434,8 @@
           <polyline points="14 2 14 8 20 8"/>
           <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
-        <p class="state-title">Вставь ссылку на файл</p>
-        <p class="state-desc">Поддерживаются <strong>.md</strong> и <strong>.json</strong>. Передай URL через параметр <code>?url=</code> или вставь в поле выше.</p>
+        <p class="state-title">Загрузите локальный файл или вставьте ссылку</p>
+        <p class="state-desc">Поддерживаются <strong>.md</strong> и <strong>.json</strong>. Нажмите кнопку <strong>Открыть</strong> для выбора файла с диска, либо вставьте URL — он примет параметр <code>?url=</code>.</p>
       </div>
     </div>
   </main>
@@ -721,9 +723,10 @@ async function fetchWithFallback(url) {
   throw lastErr;
 }
 
-/* ── Loader ─────────────────────────────────────────────── */
+/* ── Loader / Local file ────────────────────────────────── */
 const urlInput  = document.getElementById('urlInput');
 const btnLoad   = document.getElementById('btnLoad');
+const fileInput = document.getElementById('fileInput');
 const content   = document.getElementById('content');
 const fileBadge = document.getElementById('fileBadge');
 
@@ -766,6 +769,48 @@ function detectType(url, text) {
   return 'md';
 }
 
+async function loadLocalFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const ext = file.name.split('.').pop().toLowerCase();
+    let type;
+    if (ext === 'json') type = 'json';
+    else if (ext === 'md' || ext === 'markdown') type = 'md';
+    else {
+      const trimmed = text.trimStart();
+      type = (trimmed.startsWith('{') || trimmed.startsWith('[')) ? 'json' : 'md';
+    }
+    renderContent(text, type, file.name);
+    urlInput.value = '';
+    fileInput.value = '';
+  };
+  reader.onerror = () => showError('Не удалось прочитать файл');
+  reader.readAsText(file);
+}
+
+function renderContent(text, type, source) {
+  fileBadge.textContent = type.toUpperCase();
+  fileBadge.className = `file-badge visible ${type}`;
+
+  if (type === 'json') {
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e) { showError('Файл выглядит как JSON, но содержит ошибку:<br><code>' + esc(e.message) + '</code>'); return; }
+    content.innerHTML = renderJson(data);
+    document.title = 'JSON — ' + source;
+  } else {
+    content.innerHTML = '<article class="md-body">' + marked.parse(text) + '</article>';
+    document.title = 'MD — ' + source.replace(/\.md$/i, '');
+  }
+}
+
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) loadLocalFile(file);
+});
+
 async function loadFile(rawUrl) {
   if (!rawUrl) return;
   rawUrl = rawUrl.trim();
@@ -781,30 +826,23 @@ async function loadFile(rawUrl) {
   try {
     const text = await fetchWithFallback(rawUrl);
     const type = detectType(rawUrl, text);
-    const fileName = rawUrl.split('/').pop().split('?')[0];
+    const source = rawUrl.split('/').pop().split('?')[0];
 
-    // update badge
-    fileBadge.textContent = type.toUpperCase();
-    fileBadge.className = `file-badge visible ${type}`;
-
-    if (type === 'json') {
-      let data;
-      try { data = JSON.parse(text); }
-      catch(e) { showError('Файл выглядит как JSON, но содержит ошибку:<br><code>' + esc(e.message) + '</code>'); return; }
-      content.innerHTML = renderJson(data);
-      document.title = 'JSON — ' + fileName;
-    } else {
-      content.innerHTML = '<article class="md-body">' + marked.parse(text) + '</article>';
-      document.title = 'MD — ' + fileName.replace(/\.md$/i, '');
-    }
-
+    renderContent(text, type, source);
     setParam(rawUrl);
   } catch (err) {
     showError(esc(err.message || 'Неизвестная ошибка') + '<br><small style="opacity:.6">URL: ' + esc(rawUrl) + '</small>');
   }
 }
 
-btnLoad.addEventListener('click', () => loadFile(urlInput.value));
+btnLoad.addEventListener('click', () => {
+  const val = urlInput.value.trim();
+  if (val) {
+    loadFile(val);
+  } else {
+    fileInput.click();
+  }
+});
 urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadFile(urlInput.value); });
 
 const initUrl = getParam('url');
