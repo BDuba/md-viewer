@@ -499,6 +499,14 @@ compactBtn.addEventListener('click', () => {
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function slugify(str) {
+  return String(str)
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'heading';
+}
 
 /* ── Marked (Markdown) ──────────────────────────────────── */
 marked.use({
@@ -851,7 +859,19 @@ function renderContent(text, type, source, isLocal = false) {
     content.innerHTML = sourceHtml + renderJson(data);
     document.title = 'JSON — ' + source;
   } else {
-    content.innerHTML = sourceHtml + '<article class="md-body">' + marked.parse(text) + '</article>';
+    const mdHtml = marked.parse(text);
+    const headingSlugs = new Set();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = mdHtml;
+    tmp.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h => {
+      const slug = slugify(h.textContent);
+      let final = slug;
+      let n = 1;
+      while (headingSlugs.has(final)) final = slug + '-' + (n++);
+      headingSlugs.add(final);
+      h.id = final;
+    });
+    content.innerHTML = sourceHtml + '<article class="md-body">' + tmp.innerHTML + '</article>';
     document.title = 'MD — ' + source.replace(/\.md$/i, '');
   }
 }
