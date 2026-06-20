@@ -167,6 +167,21 @@
     .file-badge.md   { border-color: var(--primary); color: var(--primary);
       background: color-mix(in oklab, var(--primary) 8%, transparent); }
 
+    .btn-clear {
+      display: none; align-items: center; justify-content: center;
+      width: 1.4rem; height: 1.4rem; border-radius: var(--r-sm);
+      color: var(--faint); background: none; border: none; padding: 0;
+      cursor: pointer; transition: color var(--tr), background var(--tr);
+    }
+    .btn-clear:hover { color: var(--text); background: var(--surface-off); }
+    .btn-clear.visible { display: inline-flex; }
+
+    .file-source {
+      font-size: var(--tx); color: var(--muted); font-family: var(--mono);
+      margin-bottom: 1rem; display: flex; align-items: center; gap: 0.4rem;
+    }
+    .file-source svg { color: var(--primary); flex-shrink: 0; }
+
     /* ── Main ─────────────────────────────────────────────── */
     .main-wrap { max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem; }
 
@@ -408,6 +423,12 @@
         <input class="url-input" id="urlInput" type="url"
           placeholder="https://example.com/file.md или .json"
           spellcheck="false" autocomplete="off" aria-label="URL файла">
+        <button class="btn-clear" id="btnClear" title="Очистить" style="display:none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
         <button class="btn-load" id="btnLoad">Открыть</button>
         <input type="file" class="file-input-hidden" id="fileInput" accept=".md,.json,text/markdown,application/json" aria-label="Выбрать локальный файл">
       </div>
@@ -726,6 +747,7 @@ async function fetchWithFallback(url) {
 /* ── Loader / Local file ────────────────────────────────── */
 const urlInput  = document.getElementById('urlInput');
 const btnLoad   = document.getElementById('btnLoad');
+const btnClear  = document.getElementById('btnClear');
 const fileInput = document.getElementById('fileInput');
 const content   = document.getElementById('content');
 const fileBadge = document.getElementById('fileBadge');
@@ -782,7 +804,7 @@ async function loadLocalFile(file) {
       const trimmed = text.trimStart();
       type = (trimmed.startsWith('{') || trimmed.startsWith('[')) ? 'json' : 'md';
     }
-    renderContent(text, type, file.name);
+    renderContent(text, type, file.name, true);
     urlInput.value = '';
     fileInput.value = '';
   };
@@ -790,18 +812,29 @@ async function loadLocalFile(file) {
   reader.readAsText(file);
 }
 
-function renderContent(text, type, source) {
+function renderContent(text, type, source, isLocal = false) {
   fileBadge.textContent = type.toUpperCase();
   fileBadge.className = `file-badge visible ${type}`;
+
+  let sourceHtml = '';
+  if (isLocal) {
+    sourceHtml = `<div class="file-source">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      ${esc(source)} <span style="opacity:.6">(локальный файл)</span>
+    </div>`;
+  }
 
   if (type === 'json') {
     let data;
     try { data = JSON.parse(text); }
     catch(e) { showError('Файл выглядит как JSON, но содержит ошибку:<br><code>' + esc(e.message) + '</code>'); return; }
-    content.innerHTML = renderJson(data);
+    content.innerHTML = sourceHtml + renderJson(data);
     document.title = 'JSON — ' + source;
   } else {
-    content.innerHTML = '<article class="md-body">' + marked.parse(text) + '</article>';
+    content.innerHTML = sourceHtml + '<article class="md-body">' + marked.parse(text) + '</article>';
     document.title = 'MD — ' + source.replace(/\.md$/i, '');
   }
 }
@@ -852,6 +885,18 @@ window.addEventListener('popstate', () => {
   const u = getParam('url');
   if (u) { urlInput.value = u; loadFile(u); }
 });
+
+/* ── Clear button ─────────────────────────────────────────── */
+function toggleClearButton() {
+  btnClear.classList.toggle('visible', urlInput.value.trim() !== '');
+}
+urlInput.addEventListener('input', toggleClearButton);
+btnClear.addEventListener('click', () => {
+  urlInput.value = '';
+  urlInput.focus();
+  toggleClearButton();
+});
+toggleClearButton();
 
 })();
 </script>
