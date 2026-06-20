@@ -732,14 +732,14 @@ const PROXIES = [
   url => 'https://corsproxy.org/?' + encodeURIComponent(url),
 ];
 
-async function fetchWithFallback(url) {
+async function fetchWithFallback(url, signal) {
   let lastErr;
   for (const proxy of PROXIES) {
     try {
-      const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(12000) });
+      const resp = await fetch(proxy(url), { signal });
       if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
       return await resp.text();
-    } catch (err) { lastErr = err; }
+    } catch (err) { if (err.name === 'AbortError') throw err; lastErr = err; }
   }
   throw lastErr;
 }
@@ -751,6 +751,21 @@ const btnClear  = document.getElementById('btnClear');
 const fileInput = document.getElementById('fileInput');
 const content   = document.getElementById('content');
 const fileBadge = document.getElementById('fileBadge');
+let activeAbortController = null;
+
+function showEmptyState() {
+  fileBadge.className = 'file-badge';
+  content.innerHTML = `<div class="state-box" id="emptyState">
+    <svg class="state-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    <p class="state-title">Загрузите локальный файл или вставьте ссылку</p>
+    <p class="state-desc">Поддерживаются <strong>.md</strong> и <strong>.json</strong>. Нажмите кнопку <strong>Открыть</strong> для выбора файла с диска, либо вставьте URL — он примет параметр <code>?url=</code>.</p>
+  </div>`;
+  document.title = 'File Viewer';
+}
 
 function getParam(n) { return new URLSearchParams(location.search).get(n); }
 function setParam(url) {
@@ -855,19 +870,32 @@ async function loadFile(rawUrl) {
     .replace(/^https:\/\/github\.com\/(.+?)\/blob\//, 'https://raw.githubusercontent.com/$1/')
     .replace(/^https:\/\/gitlab\.com\/(.+?)\/-\/blob\//, 'https://gitlab.com/$1/-/raw/');
 
+  activeAbortController?.abort();
+  const controller = new AbortController();
+  activeAbortController = controller;
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
   urlInput.value = rawUrl;
+  urlInput.dataset.local = '';
   toggleClearButton();
   showSkeleton();
 
   try {
-    const text = await fetchWithFallback(rawUrl);
+    const text = await fetchWithFallback(rawUrl, controller.signal);
+    clearTimeout(timeoutId);
+    if (activeAbortController !== controller) return;
     const type = detectType(rawUrl, text);
     const source = rawUrl.split('/').pop().split('?')[0];
 
     renderContent(text, type, source);
     setParam(rawUrl);
   } catch (err) {
+    clearTimeout(timeoutId);
+    if (activeAbortController !== controller) return;
+    if (err.name === 'AbortError') return;
     showError(esc(err.message || 'Неизвестная ошибка') + '<br><small style="opacity:.6">URL: ' + esc(rawUrl) + '</small>');
+  } finally {
+    if (activeAbortController === controller) activeAbortController = null;
   }
 }
 
@@ -908,10 +936,13 @@ urlInput.addEventListener('input', () => {
   toggleClearButton();
 });
 btnClear.addEventListener('click', () => {
+  activeAbortController?.abort();
   urlInput.value = '';
   urlInput.dataset.local = '';
   urlInput.focus();
   toggleClearButton();
+  showEmptyState();
+  history.pushState({}, '', location.pathname);
 });
 toggleClearButton();
 
