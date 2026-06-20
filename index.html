@@ -15,6 +15,9 @@
   <link id="hljs-theme-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" disabled>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pikchr-js/pikchr.js"></script>
+
   <style>
     /* ── Tokens ───────────────────────────────────────────── */
     :root, [data-theme="light"] {
@@ -301,6 +304,33 @@
     .md-body img { border-radius: var(--r-md); box-shadow: var(--shadow-md); margin: 1.5rem 0; max-width: 100%; }
     .md-body input[type="checkbox"] { accent-color: var(--primary); width: 1em; height: 1em; margin-right: 0.5rem; }
 
+    /* ── Diagram blocks (mermaid / plantuml / pikchr) ─────── */
+    .md-body .diagram-block {
+      margin: 1.5rem 0; padding: 1.25rem 1rem; text-align: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-lg); overflow-x: auto; box-shadow: var(--shadow-sm);
+    }
+    .md-body .diagram-block svg { max-width: 100%; height: auto; display: inline-block; }
+    .md-body .diagram-block img { display: inline-block; margin: 0; box-shadow: none; border-radius: 0; max-width: 100%; }
+    .md-body .diagram-status {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      color: var(--muted); font-size: var(--ts); padding: 0.5rem 0;
+    }
+    .md-body .diagram-status::before {
+      content: ''; width: 0.9rem; height: 0.9rem; border-radius: 50%;
+      border: 2px solid var(--border); border-top-color: var(--primary);
+      animation: spin 0.8s linear infinite;
+    }
+    .md-body .diagram-error .diagram-status { color: #a53142; }
+    .md-body .diagram-error .diagram-status::before { content: none; }
+    .md-body .diagram-source-fallback {
+      text-align: left; margin-top: 0.75rem; padding: 0.75rem 1rem;
+      background: var(--code-bg); border: 1px solid var(--divider);
+      border-radius: var(--r-sm); font-family: var(--mono);
+      font-size: var(--tx); line-height: 1.6; white-space: pre-wrap; color: var(--text);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* ── Compact mode ─────────────────────────────────────── */
     .compact .md-body { font-size: var(--ts); }
     .compact .main-wrap { max-width: 100%; padding: 1rem; }
@@ -479,6 +509,7 @@ themeBtn.addEventListener('click', () => {
   themeBtn.innerHTML = theme === 'dark'
     ? '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
     : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+  rethemeDiagrams();
 });
 function syncHljs(t) {
   document.getElementById('hljs-theme-dark').disabled  = (t !== 'dark');
@@ -509,13 +540,44 @@ function slugify(str) {
 }
 
 /* ── Marked (Markdown) ──────────────────────────────────── */
+function plantumlHexUrl(code) {
+  const bytes = new TextEncoder().encode(code);
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+  return 'https://www.plantuml.com/plantuml/svg/~h' + hex;
+}
+
+let currentBaseUrl = null;
+
 marked.use({
   gfm: true, breaks: false,
   renderer: (() => {
     const r = new marked.Renderer();
     r.table = (header, body) =>
       `<div class="table-wrap"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
+    r.image = (href, title, text) => {
+      let url = href;
+      if (currentBaseUrl && url && !/^(https?:|data:|#)/i.test(url)) {
+        try { url = new URL(href, currentBaseUrl).href; } catch (e) {}
+      }
+      let out = `<img src="${esc(url)}" alt="${esc(text || '')}" loading="lazy"`;
+      if (title) out += ` title="${esc(title)}"`;
+      return out + '>';
+    };
     r.code = (code, lang) => {
+      const normLang = (lang || '').trim().toLowerCase();
+      if (normLang === 'mermaid' || normLang === 'mmd') {
+        return `<div class="diagram-block diagram-loading" data-diagram="mermaid" data-source="${esc(code).replace(/"/g,'&quot;')}">` +
+          `<div class="diagram-status">Рендеринг Mermaid…</div></div>`;
+      }
+      if (normLang === 'plantuml' || normLang === 'puml') {
+        const src = plantumlHexUrl(code);
+        return `<div class="diagram-block"><img src="${esc(src)}" alt="PlantUML diagram" loading="lazy"></div>`;
+      }
+      if (normLang === 'pikchr') {
+        return `<div class="diagram-block diagram-loading" data-diagram="pikchr" data-source="${esc(code).replace(/"/g,'&quot;')}">` +
+          `<div class="diagram-status">Рендеринг Pikchr…</div></div>`;
+      }
       const vl = lang && hljs.getLanguage(lang) ? lang : null;
       const hi = vl ? hljs.highlight(code, {language: vl}).value : hljs.highlightAuto(code).value;
       const dl = vl || 'auto';
@@ -529,6 +591,88 @@ marked.use({
     return r;
   })()
 });
+
+/* ── Diagram rendering (mermaid / pikchr) ──────────────── */
+let mermaidReady = null;
+function initMermaid() {
+  if (mermaidReady) return mermaidReady;
+  mermaidReady = Promise.resolve().then(() => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: theme === 'dark' ? 'dark' : 'default',
+      securityLevel: 'loose',
+    });
+  });
+  return mermaidReady;
+}
+
+let pikchrReady = null;
+function loadPikchrOnce() {
+  if (pikchrReady) return pikchrReady;
+  pikchrReady = (typeof loadPikchr === 'function')
+    ? loadPikchr()
+    : Promise.reject(new Error('pikchr-js не загружен'));
+  return pikchrReady;
+}
+
+function diagramId(prefix) {
+  return prefix + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+async function renderMermaidEl(el) {
+  const source = el.dataset.source || '';
+  await initMermaid();
+  try {
+    const { svg } = await mermaid.render(diagramId('mmd'), source);
+    el.classList.remove('diagram-loading');
+    el.innerHTML = svg;
+  } catch (err) {
+    el.classList.remove('diagram-loading');
+    el.classList.add('diagram-error');
+    el.innerHTML = `<div class="diagram-status">Ошибка Mermaid: ${esc(err.message || err)}</div>` +
+      `<pre class="diagram-source-fallback">${esc(source)}</pre>`;
+  }
+}
+
+async function renderPikchrEl(el) {
+  const source = el.dataset.source || '';
+  try {
+    const pikchr = await loadPikchrOnce();
+    const flags = theme === 'dark' ? pikchr.flags.DARK_MODE : 0;
+    const svg = pikchr(source, 'pikchr', flags);
+    el.classList.remove('diagram-loading');
+    el.innerHTML = svg;
+  } catch (err) {
+    el.classList.remove('diagram-loading');
+    el.classList.add('diagram-error');
+    el.innerHTML = `<div class="diagram-status">Ошибка Pikchr: ${esc(err.message || err)}</div>` +
+      `<pre class="diagram-source-fallback">${esc(source)}</pre>`;
+  }
+}
+
+function processDiagrams(root) {
+  root.querySelectorAll('.diagram-block[data-diagram="mermaid"]').forEach(renderMermaidEl);
+  root.querySelectorAll('.diagram-block[data-diagram="pikchr"]').forEach(renderPikchrEl);
+}
+
+function rethemeDiagrams() {
+  const blocks = content.querySelectorAll('.diagram-block[data-diagram]');
+  if (!blocks.length) return;
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default', securityLevel: 'loose' });
+  }
+  blocks.forEach(el => {
+    el.classList.remove('diagram-error');
+    el.classList.add('diagram-loading');
+    if (el.dataset.diagram === 'mermaid') {
+      el.innerHTML = `<div class="diagram-status">Рендеринг Mermaid…</div>`;
+      renderMermaidEl(el);
+    } else if (el.dataset.diagram === 'pikchr') {
+      el.innerHTML = `<div class="diagram-status">Рендеринг Pikchr…</div>`;
+      renderPikchrEl(el);
+    }
+  });
+}
 
 /* copy button delegation */
 document.addEventListener('click', e => {
@@ -828,6 +972,7 @@ async function loadLocalFile(file) {
       type = (trimmed.startsWith('{') || trimmed.startsWith('[')) ? 'json' : 'md';
     }
     renderContent(text, type, file.name, true);
+    currentBaseUrl = null;
     urlInput.value = file.name;
     urlInput.dataset.local = 'true';
     fileInput.value = '';
@@ -873,6 +1018,7 @@ function renderContent(text, type, source, isLocal = false) {
     });
     content.innerHTML = sourceHtml + '<article class="md-body">' + tmp.innerHTML + '</article>';
     document.title = 'MD — ' + source.replace(/\.md$/i, '');
+    processDiagrams(content);
   }
 }
 
@@ -907,6 +1053,7 @@ async function loadFile(rawUrl) {
     const type = detectType(rawUrl, text);
     const source = rawUrl.split('/').pop().split('?')[0];
 
+    currentBaseUrl = rawUrl;
     renderContent(text, type, source);
     setParam(rawUrl);
   } catch (err) {
