@@ -423,7 +423,7 @@
         <input class="url-input" id="urlInput" type="url"
           placeholder="https://example.com/file.md или .json"
           spellcheck="false" autocomplete="off" aria-label="URL файла">
-        <button class="btn-clear" id="btnClear" title="Очистить" style="display:none;">
+        <button class="btn-clear" id="btnClear" title="Очистить">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18"/>
             <line x1="6" y1="6" x2="18" y2="18"/>
@@ -805,8 +805,10 @@ async function loadLocalFile(file) {
       type = (trimmed.startsWith('{') || trimmed.startsWith('[')) ? 'json' : 'md';
     }
     renderContent(text, type, file.name, true);
-    urlInput.value = '';
+    urlInput.value = file.name;
+    urlInput.dataset.local = 'true';
     fileInput.value = '';
+    toggleClearButton();
   };
   reader.onerror = () => showError('Не удалось прочитать файл');
   reader.readAsText(file);
@@ -854,6 +856,7 @@ async function loadFile(rawUrl) {
     .replace(/^https:\/\/gitlab\.com\/(.+?)\/-\/blob\//, 'https://gitlab.com/$1/-/raw/');
 
   urlInput.value = rawUrl;
+  toggleClearButton();
   showSkeleton();
 
   try {
@@ -870,29 +873,43 @@ async function loadFile(rawUrl) {
 
 btnLoad.addEventListener('click', () => {
   const val = urlInput.value.trim();
-  if (val) {
+  if (urlInput.dataset.local === 'true') {
+    fileInput.click();
+  } else if (val) {
     loadFile(val);
   } else {
     fileInput.click();
   }
 });
-urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadFile(urlInput.value); });
+urlInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (urlInput.dataset.local === 'true') {
+      fileInput.click();
+    } else {
+      loadFile(urlInput.value);
+    }
+  }
+});
 
 const initUrl = getParam('url');
-if (initUrl) { urlInput.value = initUrl; loadFile(initUrl); }
+if (initUrl) { urlInput.value = initUrl; urlInput.dataset.local = ''; loadFile(initUrl); }
 
 window.addEventListener('popstate', () => {
   const u = getParam('url');
-  if (u) { urlInput.value = u; loadFile(u); }
+  if (u) { urlInput.value = u; urlInput.dataset.local = ''; loadFile(u); }
 });
 
 /* ── Clear button ─────────────────────────────────────────── */
 function toggleClearButton() {
   btnClear.classList.toggle('visible', urlInput.value.trim() !== '');
 }
-urlInput.addEventListener('input', toggleClearButton);
+urlInput.addEventListener('input', () => {
+  urlInput.dataset.local = '';
+  toggleClearButton();
+});
 btnClear.addEventListener('click', () => {
   urlInput.value = '';
+  urlInput.dataset.local = '';
   urlInput.focus();
   toggleClearButton();
 });
