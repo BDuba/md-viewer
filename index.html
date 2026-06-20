@@ -881,19 +881,31 @@ const PROXIES = [
   url => url,
   url => 'https://cors.eu.org/' + url,
   url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-  url => 'https://corsproxy.org/?' + encodeURIComponent(url),
 ];
 
 async function fetchWithFallback(url, signal) {
   let lastErr;
   for (const proxy of PROXIES) {
+    const perProxy = new AbortController();
+    const perTimer = setTimeout(() => perProxy.abort(), 8000);
+    const onOuterAbort = () => perProxy.abort();
+    if (signal) {
+      if (signal.aborted) perProxy.abort();
+      else signal.addEventListener('abort', onOuterAbort, { once: true });
+    }
     try {
-      const resp = await fetch(proxy(url), { signal });
+      const resp = await fetch(proxy(url), { signal: perProxy.signal });
       if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
       return await resp.text();
-    } catch (err) { if (err.name === 'AbortError') throw err; lastErr = err; }
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      lastErr = err;
+    } finally {
+      clearTimeout(perTimer);
+      if (signal) signal.removeEventListener('abort', onOuterAbort);
+    }
   }
-  throw lastErr;
+  throw lastErr || new Error('Все прокси недоступны');
 }
 
 /* ── Loader / Local file ────────────────────────────────── */
@@ -1039,7 +1051,6 @@ async function loadFile(rawUrl) {
   activeAbortController?.abort();
   const controller = new AbortController();
   activeAbortController = controller;
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   urlInput.value = rawUrl;
   urlInput.dataset.local = '';
@@ -1048,7 +1059,6 @@ async function loadFile(rawUrl) {
 
   try {
     const text = await fetchWithFallback(rawUrl, controller.signal);
-    clearTimeout(timeoutId);
     if (activeAbortController !== controller) return;
     const type = detectType(rawUrl, text);
     const source = rawUrl.split('/').pop().split('?')[0];
@@ -1057,10 +1067,13 @@ async function loadFile(rawUrl) {
     renderContent(text, type, source);
     setParam(rawUrl);
   } catch (err) {
-    clearTimeout(timeoutId);
     if (activeAbortController !== controller) return;
-    if (err.name === 'AbortError') return;
-    showError(esc(err.message || 'Неизвестная ошибка') + '<br><small style="opacity:.6">URL: ' + esc(rawUrl) + '</small>');
+    if (controller.signal.aborted) return;
+    let msg = err && err.message ? err.message : 'Неизвестная ошибка';
+    if (err && err.name === 'AbortError') {
+      msg = 'Файл недоступен: прямой запрос заблокирован CORS, а все прокси-зеркала превысили таймаут';
+    }
+    showError(esc(msg) + '<br><small style="opacity:.6">URL: ' + esc(rawUrl) + '</small>');
   } finally {
     if (activeAbortController === controller) activeAbortController = null;
   }
