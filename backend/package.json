@@ -1,0 +1,9 @@
+{
+  "name": "md-viewer-export",
+  "version": "1.0.0",
+  "description": "DOCX export backend for md-viewer via pandoc",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  }
+}

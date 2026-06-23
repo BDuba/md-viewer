@@ -162,6 +162,7 @@
     }
     .btn-icon:hover { background: var(--surface-off); color: var(--text); }
     .btn-icon.active { color: var(--primary); }
+    .btn-icon:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 
     /* file-type badge */
     .file-badge {
@@ -486,6 +487,13 @@
       <button class="btn-icon" id="themeToggle" title="Тема">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btnExportDocx" title="Экспорт недоступен — бэк-энд не настроен" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <path d="M8 13h8M8 17h5" stroke-linecap="round"/>
         </svg>
       </button>
     </div>
@@ -1017,6 +1025,9 @@ async function loadLocalFile(file) {
 }
 
 function renderContent(text, type, source, isLocal = false) {
+  window._currentMarkdownText = text;
+  window._currentSourceName = source;
+
   fileBadge.textContent = type.toUpperCase();
   fileBadge.className = `file-badge visible ${type}`;
 
@@ -1054,6 +1065,7 @@ function renderContent(text, type, source, isLocal = false) {
     document.title = 'MD — ' + source.replace(/\.md$/i, '');
     processDiagrams(content);
   }
+  checkExportAvailability();
 }
 
 fileInput.addEventListener('change', e => {
@@ -1144,9 +1156,146 @@ btnClear.addEventListener('click', () => {
   urlInput.focus();
   toggleClearButton();
   showEmptyState();
+  window._currentMarkdownText = '';
+  checkExportAvailability();
   history.pushState({}, '', location.pathname);
 });
 toggleClearButton();
+
+/* ── DOCX Export ────────────────────────────────────────── */
+async function checkExportAvailability() {
+  const btn = document.getElementById('btnExportDocx');
+  if (!btn) return;
+  const badge = document.getElementById('fileBadge');
+  if (!badge || !badge.classList.contains('md') || !window._currentMarkdownText) {
+    btn.disabled = true;
+    btn.title = 'Экспорт недоступен — бэк-энд не настроен';
+    return;
+  }
+  try {
+    const r = await fetch('/api/export-docx', { method: 'GET', signal: AbortSignal.timeout(5000) });
+    if (r.status === 204) {
+      btn.disabled = false;
+      btn.title = 'Скачать DOCX';
+    } else {
+      btn.disabled = true;
+      btn.title = 'Экспорт недоступен — бэк-энд не настроен';
+    }
+  } catch (e) {
+    btn.disabled = true;
+    btn.title = 'Экспорт недоступен — бэк-энд не настроен';
+  }
+}
+
+function resolveInlineImages(md) {
+  return md.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, url) => {
+    if (/^(https?:|data:|#)/i.test(url)) return match;
+    if (currentBaseUrl) {
+      try {
+        const resolved = new URL(url, currentBaseUrl).href;
+        return `![${alt}](${resolved})`;
+      } catch (e) {}
+    }
+    return match;
+  });
+}
+
+function svgToDataUri(svg) {
+  const serializer = new XMLSerializer();
+  let str = serializer.serializeToString(svg);
+  if (!str.match(/\<\?xml/)) {
+    str = '\u003c?xml version="1.0" encoding="UTF-8"?\u003e' + str;
+  }
+  const bytes = new TextEncoder().encode(str);
+  const binStr = Array.from(bytes, b => String.fromCharCode(b)).join('');
+  return 'data:image/svg+xml;base64,' + btoa(binStr);
+}
+
+function waitForDiagrams() {
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      const loading = content.querySelectorAll('.diagram-loading');
+      if (loading.length === 0 || attempts > 50) {
+        clearInterval(interval);
+        resolve();
+      }
+      attempts++;
+    }, 200);
+  });
+}
+
+async function inlineDiagrams(md) {
+  await waitForDiagrams();
+  const blocks = Array.from(content.querySelectorAll('.diagram-block'));
+  let idx = 0;
+  return md.replace(/```[ \t]*(mermaid|plantuml|pikchr)[ \t]*\r?\n([\s\S]*?)```/g, (match, lang) => {
+    const block = blocks[idx++];
+    if (!block) return match;
+    const type = block.dataset.diagram;
+    if (type === 'mermaid' || type === 'pikchr') {
+      const svg = block.querySelector('svg');
+      if (!svg) return match;
+      try {
+        const dataUri = svgToDataUri(svg);
+        return `![${type === 'mermaid' ? 'Mermaid Diagram' : 'Pikchr Diagram'}](${dataUri})`;
+      } catch (e) {
+        console.error('SVG serialization failed', e);
+        return match;
+      }
+    }
+    if (type === 'plantuml') {
+      const img = block.querySelector('img');
+      if (img && img.src) {
+        return `![PlantUML Diagram](${img.src})`;
+      }
+    }
+    return match;
+  });
+}
+
+async function exportDocx() {
+  const btn = document.getElementById('btnExportDocx');
+  if (!btn || btn.disabled) return;
+  if (!window._currentMarkdownText) return;
+  btn.classList.add('active');
+  btn.disabled = true;
+
+  try {
+    let md = window._currentMarkdownText;
+    md = resolveInlineImages(md);
+    md = await inlineDiagrams(md);
+
+    const resp = await fetch('/api/export-docx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        markdown: md,
+        filename: window._currentSourceName || 'document.md'
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'HTTP ' + resp.status }));
+      throw new Error(err.error);
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (window._currentSourceName || 'document.md').replace(/\.md$/i, '') + '.docx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Ошибка экспорта DOCX:\n' + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('active');
+  }
+}
+
+document.getElementById('btnExportDocx')?.addEventListener('click', exportDocx);
 
 });
 </script>

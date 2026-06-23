@@ -328,6 +328,44 @@ function ownProxy(url) {
 
 (в последнем варианте nginx-конфиг должен уметь выбирать upstream по пути — проще оставить отдельный префикс на домен: `/storage-files/`, `/storage-cdn/` и т. д.)
 
+## Экспорт в DOCX
+
+В шапку добавлена кнопка «.docx» (рядом с переключателем темы). Она активна только когда:
+- загружен Markdown-файл,
+- настроен и запущен backend-эндпоинт `/api/export-docx`.
+
+### Архитектура экспорта
+- **Frontend** (`index.html`): перед отправкой исходный Markdown проходит front-end препроцессинг:
+  - относительные URL изображений резолвятся в абсолютные,
+  - блоки `` \`\`\`mermaid `` и `` \`\`\`pikchr `` заменяются на встроенные SVG в Base64,
+  - блоки `` \`\`\`plantuml `` заменяются на `![PlantUML](plantuml_url)`.
+- **Backend** (`private/backend/server.js`): лёгкий Node.js HTTP-сервер (zero-зависимостей). Принимает JSON `{ markdown, filename }`, запускает `pandoc -f gfm -t docx --wrap=none`, обрабатывает `data:` URI изображений (пишет во временные файлы) и отдаёт готовый `.docx`.
+- **Nginx** (`nginx.ssl.conf_export_docx`): location `/api/` проксируется на `127.0.0.1:3001`.
+
+### Требования к серверу
+- `pandoc` >= 3.x (или 2.9.2+). Рекомендуется свежий `.deb` с GitHub Releases.
+- `node` >= 18.
+- systemd (для запуска backend-как-сервиса).
+
+### Быстрый деплой backend на HestiaCP
+```bash
+# 1. Установить pandoc
+wget https://github.com/jgm/pandoc/releases/download/3.10/pandoc-3.10-1-amd64.deb
+sudo dpkg -i pandoc-3.10-1-amd64.deb
+
+# 2. Скопировать backend
+sudo mkdir -p /home/admin/web/report.insightpilot.ru/private/backend
+sudo cp private/backend/* /home/admin/web/report.insightpilot.ru/private/backend/
+
+# 3. Systemd
+sudo cp /path/to/mdviewer-export.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now mdviewer-export
+
+# 4. Nginx include
+sudo cp /path/to/nginx.ssl.conf_export_docx /home/admin/conf/web/report.insightpilot.ru/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 ## Деплой
 
 Приложение — это статический `index.html` + каталог `vendor/`. Минимальный вариант деплоя на любой веб-сервер:

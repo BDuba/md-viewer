@@ -1,0 +1,16 @@
+[Unit]
+Description=MD Viewer DOCX Export Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/home/admin/web/report.insightpilot.ru/private/backend
+ExecStart=/usr/bin/node /home/admin/web/report.insightpilot.ru/private/backend/server.js
+Restart=always
+RestartSec=5
+Environment="PORT=3001"
+Environment="HOST=127.0.0.1"
+
+[Install]
+WantedBy=multi-user.target
