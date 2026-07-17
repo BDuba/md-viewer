@@ -44,289 +44,56 @@ curl -sL "<URL из таблицы выше>" -o vendor/<file>
 
 Шрифты Satoshi и JetBrains Mono подключаются через `<link>` с fontshare.com и fonts.googleapis.com. Если эти домены недоступны, браузер автоматически откатывается на системные шрифты — функциональность не страдает.
 
-## CORS-прокси для источника файлов
+## Загрузка внешних файлов: `/api/fetch`
 
 ### Зачем нужен
 
-Браузер по умолчанию блокирует `fetch()` к доменам, которые не отдают заголовок `Access-Control-Allow-Origin`. Если Markdown-файлы лежат на домене без настроенного CORS (объектный storage, внутренний HTTP-сервер, GitHub raw с авторизацией и т. п.), приложение не сможет их загрузить напрямую.
+Браузер по умолчанию блокирует `fetch()` к доменам, которые не отдают `Access-Control-Allow-Origin`. Чтобы просмотрщик работал с **любыми** http(s)-источниками (объектные storages, внутренние HTTP-серверы, GitHub/GitLab raw, произвольные сайты без настроенного CORS), на бэкенде работает SSRF-safe прокси-эндпоинт `GET /api/fetch?url=<encoded>`.
 
-Чтобы обойти это, на хосте приложения настраивают обратный прокси (например, `location /storage/`), который:
+Фронтенд всегда идёт через `/api/fetch` (single source of truth) — больше никаких внешних публичных проксей (`cors.eu.org`, `allorigins.win`), никакой захардкоженной привязки к конкретному storage-домену.
 
-1. Форвардит запросы на upstream-домен с файлами.
-2. Добавляет CORS-заголовки в ответ (`Access-Control-Allow-Origin: *`).
-3. Отвечает на preflight `OPTIONS` 204-м статусом.
+### Архитектура
 
-Фронтенд автоматически использует этот прокси для доменов, попадающих под regex в функции `ownProxy()` в `index.html` (см. раздел «Адаптация под свой storage»).
+- **Frontend** (`index.html`): все запросы к внешним URL идут через единственный proxy `'/api/fetch?url=' + encodeURIComponent(url)` в массиве `PROXIES`. Изображения в Markdown (`![](...)`) грузятся браузером напрямую — для них нужен `img-src` в CSP.
+- **Backend** (`backend/server.js`, тот же процесс, что и DOCX-экспорт): endpoint `GET /api/fetch` резолвит upstream, проверяет IP, делает запрос и отдаёт тело с `Access-Control-Allow-Origin: *`.
+- **Nginx**: `location /api/` проксирует на `127.0.0.1:3001` (см. `md.mtsa-next.ru.conf`).
+
+### Модель безопасности (SSRF-защита)
+
+Прокси не является open-relay — он отвергает запросы к внутренним/приватным адресам, чтобы предотвратить SSRF-атаки на хостинг-инфраструктуру:
+
+| Проверка                          | Реализация                                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Протокол**                      | Только `http:` / `https:`. `file:`, `ftp:`, `data:` и пр. → 400.                                                  |
+| **Приватные/зарезервированные IP** | `net.BlockList` покрывает RFC1918 (10/8, 172.16/12, 192.168/16), loopback 127/8, link-local 169.254/16 (**включая cloud-metadata 169.254.169.254**), CGNAT 100.64/10, TEST-NET, multicast, reserved, IPv6 `::1`, `fc00::/7`, `fe80::/10`. |
+| **DNS-резолв**                    | Все A/AAAA записи проверяются до соединения. Если хоть одна запись приватная → 400.                               |
+| **IP literal в URL**              | Проверяется напрямую через `net.isIP` (Node обходит `lookup` для numeric hostname).                              |
+| **Redirects**                     | До 3 редиректов, каждый пере-валидируется (URL + DNS + IP).                                                       |
+| **Размер ответа**                 | До 10 MB (`FETCH_MAX_BYTES`), сверх — 413.                                                                       |
+| **Таймаут**                       | 10 с на upstream-запрос (`FETCH_TIMEOUT_MS`).                                                                    |
+| **Rate limit**                    | 30 запросов/мин на клиентский IP (`X-Real-IP` или socket), in-memory bucket.                                      |
+
+Код集中在 функциях `resolveAndCheck`, `validateFetchUrl`, `fetchUpstream` в `backend/server.js`.
 
 ### Что важно для LLM-агента
 
-- **Прокси опционален.** Приложение работает и без него, но полагается на внешние публичные CORS-прокси (`cors.eu.org`, `api.allorigins.win`), которые периодически падают/редиректят. Для production-инсталляции прокси **обязателен**.
-- **Домен приложения и домен storage могут совпадать.** Прокси всё равно полезен: он централизованно добавляет CORS и не зависит от настроек upstream.
-- **Прокси НЕ должен быть open** (проксировать произвольные URL во весь интернет). Ограничивайте upstream конкретным хостом. Все конфиги ниже следуют этому правилу.
-- **Путь `/storage/` захардкожен во фронте.** Если меняете путь — правьте `PROXIES` в `index.html`.
-- **После любых правок конфига:** `nginx -t` (или аналог), затем reload, затем `curl -I` для проверки `access-control-allow-origin`.
+- **Прокси обязателен.** Без backend-сервиса просмотрщик не сможет загружать никакие внешние файлы (только локальные через «Открыть»).
+- **Backend один на оба endpoint'а**: `/api/fetch` (GET) и `/api/export-docx` (POST). Systemd-юнит `mdviewer-export.service`.
+- **Менять лимиты** — константы `FETCH_MAX_BYTES`, `FETCH_TIMEOUT_MS`, `FETCH_MAX_REDIRECTS`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX` в начале файла.
+- **Расширить blocklist** — объект `ipBlockList` (например, добавить публичные DNS-серверы провайдера, если они в приватном диапазоне).
+- **Разрешить конкретный приватный хост** (например, внутренний storage за VPN): добавьте bypass-проверку в `resolveAndCheck` по whitelist имён хостов.
+- **CSP**: `connect-src` должен включать `'self'` (запросы на `/api/fetch` same-origin). Для изображений: `img-src` должен явно перечислять разрешённые источники картинок.
+- **После правок бэкенда:** `systemctl restart mdviewer-export`, для nginx — `nginx -t && systemctl reload nginx`.
 
-### Шаблон nginx-конфига (заменить `<storage-domain>`)
+### Деплой backend
 
-```nginx
-# CORS proxy for upstream storage — add as a `location /storage/` block
-# inside the `server { ... }` that serves the viewer.
-location /storage/ {
-    # CORS preflight
-    if ($request_method = 'OPTIONS') {
-        add_header Access-Control-Allow-Origin '*' always;
-        add_header Access-Control-Allow-Methods 'GET, OPTIONS' always;
-        add_header Access-Control-Allow-Headers '*' always;
-        add_header Access-Control-Max-Age 86400 always;
-        add_header Content-Length 0;
-        return 204;
-    }
-
-    proxy_pass https://<storage-domain>/;
-    proxy_set_header Host <storage-domain>;
-    proxy_ssl_server_name on;
-    proxy_ssl_name <storage-domain>;
-
-    # Strip CORS headers from upstream (if any) and add our own
-    proxy_hide_header Access-Control-Allow-Origin;
-    proxy_hide_header Access-Control-Allow-Methods;
-    add_header Access-Control-Allow-Origin '*' always;
-}
-```
-
-Если upstream по HTTP (не HTTPS), замените `proxy_pass https://...` на `http://...` и удалите строки `proxy_ssl_*`.
-
-### Развёртывание на разных системах
-
-#### Plain nginx (Ubuntu/Debian/CentOS/Alpine)
-
-1. Положить статику в document root:
-
-   ```bash
-   sudo mkdir -p /var/www/file-viewer
-   sudo cp index.html vendor -t /var/www/file-viewer/
-   sudo chown -R nginx:nginx /var/www/file-viewer   # или www-data на Debian/Ubuntu
-   ```
-
-2. Создать server block (например, `/etc/nginx/conf.d/file-viewer.conf` на Debian/Ubuntu или `/etc/nginx/conf.d/file-viewer.conf` на RHEL/Alpine):
-
-   ```nginx
-   server {
-       listen 443 ssl http2;
-       server_name <viewer-domain>;
-
-       ssl_certificate     /etc/letsencrypt/live/<viewer-domain>/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/<viewer-domain>/privkey.pem;
-
-       root /var/www/file-viewer;
-       index index.html;
-
-       location /storage/ {
-           # … вставить шаблон из раздела выше …
-       }
-
-       location / { try_files $uri $uri/ =404; }
-   }
-   ```
-
-3. Проверить и перезагрузить:
-
-   ```bash
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
-
-4. Верификация:
-
-   ```bash
-   curl -sI "https://<viewer-domain>/storage/some-file.md" | grep -i access-control
-   # Ожидается: access-control-allow-origin: *
-   ```
-
-Особенности для LLM-агента:
-- document root в Debian/Ubuntu по умолчанию `/var/www/html`, пользователь `www-data`.
-- в RHEL/Alpine — `/usr/share/nginx/html`, пользователь `nginx`.
-- HTTPS обычно через Let's Encrypt (`certbot --nginx -d <viewer-domain>`).
-
-#### HestiaCP
-
-HestiaCP управляет конфигами домена сам — **нельзя редактировать `nginx.ssl.conf`/`nginx.conf` напрямую** (перетрутся при ребилде). Вместо этого используются include-файлы по маске `nginx.ssl.conf_*`.
-
-1. Положить статику в document root домена:
-
-   ```bash
-   DOMAIN=<viewer-domain>
-   DOCROOT=/home/<user>/web/$DOMAIN/public_html
-   sudo cp index.html vendor -t "$DOCROOT/"
-   sudo chown -R <user>:<user> "$DOCROOT"
-   ```
-
-2. Создать файл `/home/<user>/conf/web/$DOMAIN/nginx.ssl.conf_storage_proxy` с шаблоном `location /storage/` (из раздела выше). HestiaCP-конфиг домена уже содержит инклуд:
-
-   ```nginx
-   include /home/<user>/conf/web/$DOMAIN/nginx.ssl.conf_*;
-   ```
-
-   — отдельный include добавлять не нужно.
-
-3. Проверить и перезагрузить:
-
-   ```bash
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
-
-Особенности для LLM-агента:
-- Имя пользователя HestiaCP обычно `admin` (см. `v-list-users`).
-- Список доменов: `v-list-web-domains <user>`.
-- Document root домена: `v-list-web-domain <user> <domain> | grep DOCUMENT_ROOT`.
-- HestiaCP на некоторых шаблонах проксирует статику через Apache (`:8443`); это не мешает добавить свой `location /storage/` — он сработает до fallback.
-- Если HestiaCP пересоберёт домен (`v-rebuild-web-domains`), include-файлы по маске сохранятся, а правки в `nginx.ssl.conf` — нет.
-
-#### Caddy
-
-Caddy автоматически выпускает HTTPS и не требует отдельной настройки сертификатов.
-
-`Caddyfile`:
-
-```caddy
-<viewer-domain> {
-    root * /var/www/file-viewer
-    file_server
-
-    handle_path /storage/* {
-        reverse_proxy https://<storage-domain> {
-            header_up Host <storage-domain>
-            transport http {
-                tls_server_name <storage-domain>
-            }
-        }
-        header {
-            Access-Control-Allow-Origin "*"
-            Access-Control-Allow-Methods "GET, OPTIONS"
-            Access-Control-Allow-Headers "*"
-            Access-Control-Max-Age "86400"
-        }
-    }
-}
-```
-
-Перезагрузка:
+См. раздел «Экспорт в DOCX» ниже — это тот же Node.js-сервис на `127.0.0.1:3001`. Обновление кода:
 
 ```bash
-sudo systemctl reload caddy
+sudo cp backend/server.js /home/admin/web/<domain>/private/backend/server.js
+sudo systemctl restart mdviewer-export
+curl -sI "https://<viewer-domain>/api/fetch?url=https://example.com/" | head -1   # HTTP/2 200
 ```
-
-Особенности для LLM-агента:
-- `handle_path` (а не `handle`) срезает префикс `/storage/` — upstream получает путь без него.
-- Для preflight `OPTIONS` Caddy автоматически ответит 204, если в `header` прописаны CORS-заголовки.
-- Конфиг-файл по умолчанию: `/etc/caddy/Caddyfile`.
-
-#### Apache + mod_proxy
-
-Менее желательно (медленнее nginx/Caddy), но работает, если Apache уже стоит.
-
-```apache
-<VirtualHost *:443>
-    ServerName <viewer-domain>
-
-    DocumentRoot /var/www/file-viewer
-    SSLEngine on
-    SSLCertificateFile     /etc/letsencrypt/live/<viewer-domain>/fullchain.pem
-    SSLCertificateKeyFile  /etc/letsencrypt/live/<viewer-domain>/privkey.pem
-
-    # CORS headers
-    Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "GET, OPTIONS"
-    Header set Access-Control-Allow-Headers "*"
-
-    # Handle preflight
-    RewriteEngine On
-    RewriteCond %{REQUEST_METHOD} OPTIONS
-    RewriteRule ^(.*)$ $1 [R=204,L]
-
-    # Proxy /storage/ to upstream
-    SSLProxyEngine on
-    ProxyPass        /storage/ https://<storage-domain>/
-    ProxyPassReverse /storage/ https://<storage-domain>/
-    ProxyPreserveHost Off
-    RequestHeader set Host <storage-domain>
-</VirtualHost>
-```
-
-Включить модули и перезагрузить:
-
-```bash
-sudo a2enmod ssl headers rewrite proxy proxy_http
-sudo systemctl reload apache2
-```
-
-Особенности для LLM-агента:
-- В Debian/Ubuntu: `apache2`, в RHEL: `httpd`.
-- `ProxyPass` требует `mod_proxy` и `mod_proxy_http` (или `_ssl` для HTTPS upstream).
-- При trailing `/` в `ProxyPass` префикс `/storage/` срезается автоматически.
-
-#### Static hosting (Netlify, Vercel, GitHub Pages, Cloudflare Pages)
-
-На этих платформах **нельзя** запустить nginx/Apache прокси. Два варианта:
-
-1. **Без прокси** — приложение работает только с sources, у которых уже настроен CORS, либо через публичные прокси (ненадёжно).
-
-2. **Edge Function / Redirect с CORS-заголовками** — у Netlify и Vercel есть серверлесс-функции, можно написать прокси на JS. Пример для Netlify (`netlify/functions/storage.js`):
-
-   ```js
-   export default async (req) => {
-     const url = new URL(req.url).searchParams.get('url');
-     if (!url || !url.startsWith('https://<storage-domain>/')) {
-       return new Response('Bad url', { status: 400 });
-     }
-     const upstream = await fetch(url);
-     const headers = new Headers(upstream.headers);
-     headers.set('Access-Control-Allow-Origin', '*');
-     return new Response(upstream.body, { status: upstream.status, headers });
-   };
-   ```
-
-   Тогда `ownProxy()` во фронте должен возвращать `/.netlify/functions/storage?url=<encoded>`.
-
-Особенности для LLM-агента:
-- Cloudflare Pages поддерживает `_redirects` и Workers (отдельный прокси через Worker проще, чем Pages Functions для этой задачи).
-- GitHub Pages вообще не поддерживает серверный код — только вариант 1 или вынос прокси на другой хост.
-
-### Адаптация под свой storage
-
-Во фронте (`index.html`) за маршрутизацию на прокси отвечает функция `ownProxy()`. По умолчанию она сопоставляет URL с regex'ом для конкретного storage-домена и при совпадении переписывает путь на `/storage/<...>`. Перед деплоем **убедитесь, что regex в `index.html` указывает на ваш storage-домен** (или список доменов).
-
-Пример реализации под один домен `files.example.com`:
-
-```js
-function ownProxy(url) {
-  const m = String(url).match(/^https?:\/\/files\.example\.com\/(.*)$/);
-  if (m) return '/storage/' + m[1];
-  return url;
-}
-```
-
-Для поддомена с wildcard (например, `<bucket>.storage.example.com`):
-
-```js
-const m = String(url).match(/^https?:\/\/[^/]*\.storage\.example\.com\/(.*)$/);
-```
-
-Для нескольких доменов:
-
-```js
-function ownProxy(url) {
-  const STORAGE_HOSTS = ['files.example.com', 'cdn.example.org'];
-  try {
-    const u = new URL(url);
-    if (STORAGE_HOSTS.includes(u.hostname)) {
-      return '/storage/' + u.hostname + u.pathname.slice(1) + u.search;
-    }
-  } catch (e) {}
-  return url;
-}
-```
-
-(в последнем варианте nginx-конфиг должен уметь выбирать upstream по пути — проще оставить отдельный префикс на домен: `/storage-files/`, `/storage-cdn/` и т. д.)
 
 ## Экспорт в DOCX
 
@@ -395,6 +162,9 @@ curl -sI "https://<viewer-domain>/vendor/marked.min.js" | head -1   # HTTP/2 200
 ```
 .
 ├── index.html              # одностраничное приложение (HTML + CSS + JS в одном файле)
+├── backend/
+│   ├── server.js           # Node.js: /api/fetch (SSRF-safe proxy) + /api/export-docx (pandoc)
+│   └── package.json
 ├── vendor/                 # самохостящиеся библиотеки (см. таблицу выше)
 │   ├── marked.min.js
 │   ├── highlight.min.js
@@ -402,5 +172,6 @@ curl -sI "https://<viewer-domain>/vendor/marked.min.js" | head -1   # HTTP/2 200
 │   ├── hljs-light.css
 │   ├── mermaid.min.js
 │   └── pikchr.js
+├── mdviewer-export.service # systemd-юнит для backend
 └── README.md
 ```

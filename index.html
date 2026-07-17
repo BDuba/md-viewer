@@ -583,7 +583,6 @@ marked.use({
       if (currentBaseUrl && url && !/^(https?:|data:|#)/i.test(url)) {
         try { url = new URL(href, currentBaseUrl).href; } catch (e) {}
       }
-      url = ownProxy(url);
       let out = `<img src="${esc(url)}" alt="${esc(text || '')}" loading="lazy"`;
       if (title) out += ` title="${esc(title)}"`;
       return out + '>';
@@ -901,21 +900,12 @@ document.addEventListener('keydown', e => {
 });
 
 /* ── Fetch helpers ──────────────────────────────────────── */
-function ownProxy(url) {
-  const m = String(url).match(/^https?:\/\/[^/]*\.vkcloud-storage\.ru\/(.*)$/);
-  if (m) return '/storage/' + m[1];
-  return url;
-}
-
 const PROXIES = [
-  ownProxy,
-  url => url,
-  url => 'https://cors.eu.org/' + url,
-  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => '/api/fetch?url=' + encodeURIComponent(url),
 ];
 
 async function fetchWithFallback(url, signal) {
-  let lastErr;
+  let lastErr, meaningfulErr;
   for (const proxy of PROXIES) {
     const perProxy = new AbortController();
     const perTimer = setTimeout(() => perProxy.abort(), 8000);
@@ -931,12 +921,13 @@ async function fetchWithFallback(url, signal) {
     } catch (err) {
       if (signal?.aborted) throw err;
       lastErr = err;
+      if (err && err.name !== 'AbortError' && !meaningfulErr) meaningfulErr = err;
     } finally {
       clearTimeout(perTimer);
       if (signal) signal.removeEventListener('abort', onOuterAbort);
     }
   }
-  throw lastErr || new Error('Все прокси недоступны');
+  throw meaningfulErr || lastErr || new Error('Все прокси недоступны');
 }
 
 /* ── Loader / Local file ────────────────────────────────── */
