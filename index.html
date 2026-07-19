@@ -6,6 +6,18 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <title>File Viewer</title>
 
+  <!-- MTS Analytics -->
+  <script>
+    (function (dl, id) {
+      window[dl] = window[dl] || [];
+      const script = document.createElement('script'),
+            params = dl !== 'dataLayer' ? '?l=' + dl : '';
+      script.async = true;
+      script.src = `https://tag.a.mts.ru/container/${id}/tag.js${params}`;
+      document.head.appendChild(script);
+    })('dataLayer', '019f7975-ae92-76c7-9edb-f8edf5fd42fc');
+  </script>
+
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
