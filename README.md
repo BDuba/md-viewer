@@ -11,6 +11,7 @@ https://<viewer-domain>/?url=https://<any-host>/path/file.md
 ## Возможности
 
 - Markdown (через `marked`) с таблицами GFM, якорями заголовков и кнопкой «копировать» у блоков кода.
+- LaTeX-формулы (через KaTeX): блочные `$$...$$` и инлайн `$...$`.
 - JSON-viewer с фильтром, сворачиванием узлов и подсчётом ключей.
 - Диаграммы из fenced code blocks:
   - **Mermaid** — ` ```mermaid ` / ` ```mmd `
@@ -34,6 +35,7 @@ https://<viewer-domain>/?url=https://<any-host>/path/file.md
 | `hljs-light.css`    | Тема highlight.js (светлая)      | 11.9.0 | …/styles/github.min.css                                       |
 | `mermaid.min.js`    | Рендеринг Mermaid-диаграмм       | 11     | https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js      |
 | `pikchr.js`         | Рендеринг Pikchr-диаграмм (WASM) | 0.1.4  | https://cdn.jsdelivr.net/npm/pikchr-js/pikchr.js                 |
+| `katex/`            | Рендеринг LaTeX-формул (js+css+woff2) | 0.16.11 | https://registry.npmjs.org/katex/-/katex-0.16.11.tgz |
 
 Обновление любой библиотеки:
 
@@ -135,7 +137,39 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ## Деплой
 
-Приложение — это статический `index.html` + каталог `vendor/`. Минимальный вариант деплоя на любой веб-сервер:
+### Продакшен (этот VDS, 94.103.12.47)
+
+Проект раздаётся nginx напрямую (статика) с двух доменов:
+
+| Домен | Document root | Nginx-конфиг |
+|---|---|---|
+| `md.mtsa-next.ru` | `/home/admin/web/md.mtsa-next.ru/public_html` | `/etc/nginx/conf.d/md.mtsa-next.ru.conf` |
+| `report.insightpilot.ru` | `/home/admin/web/report.insightpilot.ru/public_html` | `/etc/nginx/conf.d/report.insightpilot.ru.conf` |
+
+Деплой frontend (index.html + vendor/) на оба домена с этой машины:
+
+```bash
+for d in md.mtsa-next.ru report.insightpilot.ru; do
+  cp /root/md-viewer/index.html /home/admin/web/$d/public_html/index.html
+  rsync -a --delete /root/md-viewer/vendor/ /home/admin/web/$d/public_html/vendor/
+  chown -R admin:admin /home/admin/web/$d/public_html
+done
+# проверка
+curl -sI https://md.mtsa-next.ru/ | head -1
+curl -sI https://report.insightpilot.ru/ | head -1
+```
+
+Владелец файлов — `admin:admin`. Backend (`/api/`) проксируется nginx'ом на `127.0.0.1:3001` (см. «Деплой backend» выше).
+
+> ВНИМАНИЕ: Hestia-конфиги `/etc/nginx/conf.d/domains/report.insightpilot.ru*.conf`
+> (симлинки на `/home/admin/conf/web/...`) в основной `nginx.conf` **не подключаются** —
+> они проксируют на apache:8443 без `Host`-заголовка и отдают 421. Используются
+> самостоятельные server-блоки в `/etc/nginx/conf.d/*.conf`, не редактируйте
+> Hestia-файлы (они перезаписываются при rebuild domain).
+
+### Минимальный вариант на любой веб-сервер
+
+Приложение — это статический `index.html` + каталог `vendor/`:
 
 ```bash
 # 1. Создать document root и скопировать статику
@@ -171,7 +205,8 @@ curl -sI "https://<viewer-domain>/vendor/marked.min.js" | head -1   # HTTP/2 200
 │   ├── hljs-dark.css
 │   ├── hljs-light.css
 │   ├── mermaid.min.js
-│   └── pikchr.js
+│   ├── pikchr.js
+│   └── katex/                # KaTeX: katex.min.js, katex.min.css, fonts/*.woff2
 ├── mdviewer-export.service # systemd-юнит для backend
 └── README.md
 ```
