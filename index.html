@@ -303,8 +303,14 @@
     }
 
     /* Tables */
+    .md-body .table-shell { position: relative; margin: 1.5rem 0; }
+    .md-body .table-shell.wide {
+      width: max-content;
+      max-width: min(1200px, calc(100vw - 3rem));
+      left: 50%; transform: translateX(-50%);
+    }
     .md-body .table-wrap {
-      overflow-x: auto; margin: 1.5rem 0;
+      overflow-x: auto;
       border-radius: var(--r-lg); border: 1px solid var(--border);
       box-shadow: var(--shadow-sm); -webkit-overflow-scrolling: touch;
     }
@@ -324,6 +330,41 @@
     }
     .md-body tbody tr:last-child td { border-bottom: none; }
     .md-body tbody tr:hover { background: var(--surface); }
+
+    /* Scroll-mode: sticky first column + right-edge fade hint */
+    .md-body .table-shell.scroll-mode .table-wrap { display: grid; }
+    .md-body .table-shell.scroll-mode .table-wrap > table { grid-area: 1 / 1; }
+    .md-body .table-shell.scroll-mode .table-wrap::after {
+      content: ''; grid-area: 1 / 1; justify-self: end; align-self: stretch;
+      position: sticky; right: 0; width: 2.5rem; margin-left: -2.5rem;
+      background: linear-gradient(to left, var(--bg), transparent);
+      pointer-events: none;
+    }
+    .md-body .table-shell.scroll-mode th:first-child,
+    .md-body .table-shell.scroll-mode td:first-child {
+      position: sticky; left: 0; z-index: 2;
+      background: var(--bg); border-right: 1px solid var(--border);
+    }
+    .md-body .table-shell.scroll-mode thead th:first-child { z-index: 3; background: var(--surface); }
+    .md-body .table-shell.scroll-mode tbody tr:hover td:first-child { background: var(--surface); }
+
+    /* Wrap mode + per-table toggle button */
+    .md-body .table-shell.wrap table { white-space: normal; }
+    .md-body .table-shell.wrap th,
+    .md-body .table-shell.wrap td { white-space: normal; overflow-wrap: anywhere; }
+    .md-body .table-mode-btn {
+      position: absolute; top: 0.5rem; right: 0.5rem; z-index: 4;
+      display: flex; align-items: center; justify-content: center;
+      width: 1.75rem; height: 1.75rem;
+      color: var(--muted); border-radius: var(--r-sm);
+      background: var(--surface); border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      opacity: 0; transition: opacity var(--tr), color var(--tr), background var(--tr);
+    }
+    .md-body .table-shell:hover .table-mode-btn,
+    .md-body .table-mode-btn:focus-visible { opacity: 1; }
+    .md-body .table-mode-btn:hover { background: var(--surface-off); color: var(--text); }
+    .md-body .table-mode-btn.active { color: var(--primary); opacity: 1; }
     .md-body hr { border: none; border-top: 1px solid var(--divider); margin: 2.5rem 0; }
     .md-body img { border-radius: var(--r-md); box-shadow: var(--shadow-md); margin: 1.5rem 0; max-width: 100%; }
     .md-body input[type="checkbox"] { accent-color: var(--primary); width: 1em; height: 1em; margin-right: 0.5rem; }
@@ -375,6 +416,7 @@
     .compact .md-body h2 { font-size: var(--tl); margin-top: 2rem; }
     .compact .md-body h3 { font-size: var(--tb); margin-top: 1.5rem; }
     .compact .md-body table { font-size: 0.72rem; }
+    .compact .md-body .table-shell.wide { max-width: min(1200px, calc(100vw - 2rem)); }
     .compact .md-body th { font-size: 0.65rem; padding: 3px 0.5rem; }
     .compact .md-body td { padding: 3px 0.5rem; }
     .compact .md-body p,.compact .md-body li { max-width: 100%; }
@@ -580,6 +622,7 @@ compactBtn.addEventListener('click', () => {
   document.body.classList.toggle('compact', compact);
   compactBtn.classList.toggle('active', compact);
   compactBtn.title = compact ? 'Обычный вид' : 'Компактный вид';
+  enhanceTables(content);
 });
 
 /* ── Helpers ────────────────────────────────────────────── */
@@ -610,7 +653,13 @@ marked.use({
   renderer: (() => {
     const r = new marked.Renderer();
     r.table = (header, body) =>
-      `<div class="table-wrap"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
+      `<div class="table-shell">` +
+        `<button class="table-mode-btn" title="Переносить строки" aria-label="Переносить строки">` +
+          `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">` +
+          `<path d="M4 19h6v-2H4v2zM20 5H4v2h16V5zm-3 6H4v2h13.25c1.1 0 2 .9 2 2s-.9 2-2 2H15v-2l-3 3 3 3v-2h2c2.21 0 4-1.79 4-4s-1.79-4-4-4z"/></svg>` +
+        `</button>` +
+        `<div class="table-wrap"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>` +
+      `</div>`;
     r.image = (href, title, text) => {
       let url = href;
       if (currentBaseUrl && url && !/^(https?:|data:|#)/i.test(url)) {
@@ -788,6 +837,61 @@ function processDiagrams(root) {
   root.querySelectorAll('.diagram-block[data-diagram="mermaid"]').forEach(renderMermaidEl);
   root.querySelectorAll('.diagram-block[data-diagram="pikchr"]').forEach(renderPikchrEl);
 }
+
+/* ── Tables: breakout / wrap ────────────────────────────── */
+const TABLE_WRAP_KEY = 'mdvTableWrap';
+let tableWrapDefault = localStorage.getItem(TABLE_WRAP_KEY) === '1';
+
+function enhanceTables(root) {
+  const shells = root.querySelectorAll('.table-shell');
+  shells.forEach(shell => {
+    shell.classList.remove('wide', 'scroll-mode');
+    shell.classList.toggle('wrap', tableWrapDefault);
+    const btn = shell.querySelector('.table-mode-btn');
+    if (btn) {
+      btn.classList.toggle('active', tableWrapDefault);
+      btn.title = tableWrapDefault ? 'Без переноса строк' : 'Переносить строки';
+    }
+  });
+  requestAnimationFrame(() => {
+    shells.forEach(shell => {
+      const wrap = shell.querySelector('.table-wrap');
+      const table = shell.querySelector('table');
+      if (!wrap || !table || tableWrapDefault) return;
+      if (table.scrollWidth > wrap.clientWidth + 1) {
+        shell.classList.add('wide');
+        requestAnimationFrame(() => {
+          if (table.scrollWidth > wrap.clientWidth + 1) shell.classList.add('scroll-mode');
+        });
+      }
+    });
+  });
+}
+
+function setTableWrapMode(on) {
+  tableWrapDefault = on;
+  localStorage.setItem(TABLE_WRAP_KEY, on ? '1' : '0');
+  content.querySelectorAll('.table-shell').forEach(shell => {
+    shell.classList.toggle('wrap', on);
+    const btn = shell.querySelector('.table-mode-btn');
+    if (btn) {
+      btn.classList.toggle('active', on);
+      btn.title = on ? 'Без переноса строк' : 'Переносить строки';
+    }
+  });
+  enhanceTables(content);
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.table-mode-btn')) return;
+  setTableWrapMode(!tableWrapDefault);
+});
+
+let _resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => enhanceTables(content), 150);
+});
 
 function rethemeDiagrams() {
   const blocks = content.querySelectorAll('.diagram-block[data-diagram]');
@@ -1307,6 +1411,7 @@ function renderContent(text, type, source, isLocal = false) {
     content.innerHTML = sourceHtml + '<article class="md-body">' + tmp.innerHTML + '</article>';
     document.title = 'MD — ' + source.replace(/\.md$/i, '');
     processDiagrams(content);
+    enhanceTables(content);
   }
   checkExportAvailability();
 }
