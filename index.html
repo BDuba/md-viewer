@@ -306,8 +306,11 @@
     .md-body .table-shell { position: relative; margin: 1.5rem 0; }
     .md-body .table-shell.wide {
       width: max-content;
-      max-width: min(1200px, calc(100vw - 3rem));
+      max-width: calc(100vw - 3rem);
       left: 50%; transform: translateX(-50%);
+    }
+    .md-body .table-shell.wrap.wide {
+      width: calc(100vw - 3rem);
     }
     .md-body .table-wrap {
       overflow-x: auto;
@@ -416,7 +419,8 @@
     .compact .md-body h2 { font-size: var(--tl); margin-top: 2rem; }
     .compact .md-body h3 { font-size: var(--tb); margin-top: 1.5rem; }
     .compact .md-body table { font-size: 0.72rem; }
-    .compact .md-body .table-shell.wide { max-width: min(1200px, calc(100vw - 2rem)); }
+    .compact .md-body .table-shell.wide { max-width: calc(100vw - 2rem); }
+    .compact .md-body .table-shell.wrap.wide { width: calc(100vw - 2rem); }
     .compact .md-body th { font-size: 0.65rem; padding: 3px 0.5rem; }
     .compact .md-body td { padding: 3px 0.5rem; }
     .compact .md-body p,.compact .md-body li { max-width: 100%; }
@@ -857,12 +861,18 @@ function enhanceTables(root) {
     shells.forEach(shell => {
       const wrap = shell.querySelector('.table-wrap');
       const table = shell.querySelector('table');
-      if (!wrap || !table || tableWrapDefault) return;
-      if (table.scrollWidth > wrap.clientWidth + 1) {
+      if (!wrap || !table) return;
+      const wrapOn = shell.classList.contains('wrap');
+      if (wrapOn) shell.classList.remove('wrap');
+      const natural = table.scrollWidth;
+      if (wrapOn) shell.classList.add('wrap');
+      if (natural > wrap.clientWidth + 1) {
         shell.classList.add('wide');
-        requestAnimationFrame(() => {
-          if (table.scrollWidth > wrap.clientWidth + 1) shell.classList.add('scroll-mode');
-        });
+        if (!wrapOn) {
+          requestAnimationFrame(() => {
+            if (table.scrollWidth > wrap.clientWidth + 1) shell.classList.add('scroll-mode');
+          });
+        }
       }
     });
   });
