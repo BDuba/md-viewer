@@ -354,7 +354,9 @@
     /* Wrap mode + per-table toggle button */
     .md-body .table-shell.wrap table { white-space: normal; }
     .md-body .table-shell.wrap th,
-    .md-body .table-shell.wrap td { white-space: normal; overflow-wrap: anywhere; }
+    .md-body .table-shell.wrap td { white-space: normal; overflow-wrap: break-word; }
+    .md-body .table-shell.wrap.squeeze th,
+    .md-body .table-shell.wrap.squeeze td { overflow-wrap: anywhere; }
     .md-body .table-mode-btn {
       position: absolute; top: 0.5rem; right: 0.5rem; z-index: 4;
       display: flex; align-items: center; justify-content: center;
@@ -850,7 +852,7 @@ let tableWrapDefault = localStorage.getItem(TABLE_MODE_KEY) !== 'nowrap';
 function enhanceTables(root) {
   const shells = root.querySelectorAll('.table-shell');
   shells.forEach(shell => {
-    shell.classList.remove('wide', 'scroll-mode');
+    shell.classList.remove('wide', 'scroll-mode', 'squeeze');
     shell.classList.toggle('wrap', tableWrapDefault);
     const btn = shell.querySelector('.table-mode-btn');
     if (btn) {
@@ -869,11 +871,12 @@ function enhanceTables(root) {
       if (wrapOn) shell.classList.add('wrap');
       if (natural > wrap.clientWidth + 1) {
         shell.classList.add('wide');
-        if (!wrapOn) {
-          requestAnimationFrame(() => {
-            if (table.scrollWidth > wrap.clientWidth + 1) shell.classList.add('scroll-mode');
-          });
-        }
+        requestAnimationFrame(() => {
+          if (table.scrollWidth > wrap.clientWidth + 1) {
+            if (shell.classList.contains('wrap')) shell.classList.add('squeeze');
+            else shell.classList.add('scroll-mode');
+          }
+        });
       }
     });
   });
