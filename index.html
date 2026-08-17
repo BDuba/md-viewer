@@ -333,7 +333,20 @@
       margin: 1.5rem 0; padding: 1.25rem 1rem; text-align: center;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--r-lg); overflow-x: auto; box-shadow: var(--shadow-sm);
+      position: relative;
     }
+    .md-body .diagram-copy {
+      position: absolute; top: 0.5rem; right: 0.5rem;
+      font-size: var(--tx); color: var(--muted);
+      display: flex; align-items: center; gap: 0.25rem;
+      padding: 0.25rem 0.5rem; border-radius: var(--r-sm);
+      background: var(--surface); border: 1px solid var(--border);
+      opacity: 0; transition: opacity var(--tr), color var(--tr), background var(--tr);
+    }
+    .md-body .diagram-block:hover .diagram-copy,
+    .md-body .diagram-copy:focus-visible { opacity: 1; }
+    .md-body .diagram-copy:hover { background: var(--surface-off); color: var(--text); }
+    .md-body .diagram-copy.copied { color: var(--primary); }
     .md-body .diagram-block svg { max-width: 100%; height: auto; display: inline-block; }
     .md-body .diagram-block img { display: inline-block; margin: 0; box-shadow: none; border-radius: 0; max-width: 100%; }
     .md-body .diagram-status {
@@ -743,6 +756,10 @@ async function renderMermaidEl(el) {
     const { svg } = await mermaid.render(diagramId('mmd'), source);
     el.classList.remove('diagram-loading');
     el.innerHTML = svg;
+    el.insertAdjacentHTML('beforeend',
+      `<button class="diagram-copy" title="Скопировать диаграмму как PNG">` +
+      `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>` +
+      ` PNG</button>`);
   } catch (err) {
     el.classList.remove('diagram-loading');
     el.classList.add('diagram-error');
@@ -794,7 +811,7 @@ function rethemeDiagrams() {
 /* copy button delegation */
 document.addEventListener('click', e => {
   const btn = e.target.closest('.btn-copy');
-  if (!btn) return;
+  if (!btn || btn.classList.contains('diagram-copy')) return;
   const code = (btn.dataset.code||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
   navigator.clipboard.writeText(code).then(() => {
     btn.classList.add('copied');
@@ -804,6 +821,146 @@ document.addEventListener('click', e => {
       btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Копировать';
     }, 2000);
   });
+});
+
+/* diagram copy-to-PNG */
+const _wrapCtx = document.createElement('canvas').getContext('2d');
+function wrapTextLines(hardLines, maxW, font) {
+  if (!maxW || maxW <= 0) return hardLines;
+  _wrapCtx.font = font;
+  const out = [];
+  hardLines.forEach(hl => {
+    let cur = '';
+    hl.split(/\s+/).filter(Boolean).forEach(word => {
+      const cand = cur ? cur + ' ' + word : word;
+      if (cur && _wrapCtx.measureText(cand).width > maxW) {
+        out.push(cur);
+        cur = word;
+      } else {
+        cur = cand;
+      }
+    });
+    if (cur) out.push(cur);
+  });
+  return out.length ? out : [''];
+}
+
+function foLines(fo) {
+  const div = fo.querySelector('div');
+  const html = (div ? div.innerHTML : fo.innerHTML) || '';
+  return html.split(/<br\s*\/?>/i)
+    .map(s => s.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim());
+}
+
+function convertForeignObjects(origSvg, cloneSvg) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const origFos = [...origSvg.querySelectorAll('foreignObject')];
+  [...cloneSvg.querySelectorAll('foreignObject')].forEach((fo, i) => {
+    const x = parseFloat(fo.getAttribute('x')) || 0;
+    const y = parseFloat(fo.getAttribute('y')) || 0;
+    const w = parseFloat(fo.getAttribute('width')) || 0;
+    const h = parseFloat(fo.getAttribute('height')) || 0;
+    const origFo = origFos[i];
+    const cs = origFo ? getComputedStyle(origFo) : null;
+    const fontSize = (cs && parseFloat(cs.fontSize)) || 16;
+    const fontFamily = (cs && cs.fontFamily) || 'sans-serif';
+    const lineH = (cs && parseFloat(cs.lineHeight)) || fontSize * 1.5;
+    const origDiv = origFo && origFo.querySelector('div');
+    const maxW = ((origDiv && origDiv.clientWidth) || w) * 1.05 + 1;
+    const lines = wrapTextLines(
+      foLines(fo).filter(Boolean), maxW, `${fontSize}px ${fontFamily}`);
+    const text = document.createElementNS(NS, 'text');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', (cs && cs.color) || '#333333');
+    text.setAttribute('font-size', fontSize);
+    text.setAttribute('font-family', fontFamily);
+    const n = Math.max(lines.length, 1);
+    lines.forEach((line, li) => {
+      const tspan = document.createElementNS(NS, 'tspan');
+      tspan.setAttribute('x', x + w / 2);
+      tspan.setAttribute('y', y + h / 2 + (li - (n - 1) / 2) * lineH + fontSize * 0.35);
+      tspan.textContent = line;
+      text.appendChild(tspan);
+    });
+    fo.replaceWith(text);
+  });
+}
+
+function svgToPngBlob(svg) {
+  return new Promise((resolve, reject) => {
+    const clone = svg.cloneNode(true);
+    convertForeignObjects(svg, clone);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.style.maxWidth = 'none';
+    clone.style.position = 'absolute';
+    clone.style.visibility = 'hidden';
+    clone.style.width = clone.style.height = 'auto';
+    document.body.appendChild(clone);
+    let vb;
+    try {
+      const bb = clone.getBBox();
+      const pad = 8;
+      vb = { x: bb.x - pad, y: bb.y - pad, w: bb.width + pad * 2, h: bb.height + pad * 2 };
+    } catch (e) {
+      const b = svg.viewBox && svg.viewBox.baseVal;
+      vb = { x: 0, y: 0, w: (b && b.width) || 800, h: (b && b.height) || 600 };
+    }
+    document.body.removeChild(clone);
+    clone.style.position = clone.style.visibility = '';
+    const w = Math.max(1, Math.ceil(vb.w));
+    const h = Math.max(1, Math.ceil(vb.h));
+    clone.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    const url = URL.createObjectURL(
+      new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml;charset=utf-8' }));
+    const img = new Image();
+    img.onload = () => {
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Не удалось загрузить SVG')); };
+    img.src = url;
+  });
+}
+
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('.diagram-copy');
+  if (!btn) return;
+  const block = btn.closest('.diagram-block');
+  if (!block) return;
+  const copyHtml = btn.innerHTML;
+  const okHtml = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Скопировано';
+  try {
+    const svg = block.querySelector('svg');
+    if (!svg) throw new Error('SVG не найден');
+    const blob = await svgToPngBlob(svg);
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    btn.classList.add('copied');
+    btn.innerHTML = okHtml;
+  } catch (err) {
+    console.error('diagram copy failed:', err);
+    try {
+      const src = block.querySelector('svg');
+      if (src && typeof ClipboardItem === 'undefined') {
+        await navigator.clipboard.writeText(new XMLSerializer().serializeToString(src));
+        btn.classList.add('copied');
+        btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> SVG';
+      } else {
+        btn.innerHTML = 'Ошибка';
+      }
+    } catch (e2) {
+      console.error('diagram copy fallback failed:', e2);
+      btn.innerHTML = 'Ошибка';
+    }
+  }
+  setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = copyHtml; }, 2000);
 });
 
 /* ── JSON Viewer ────────────────────────────────────────── */

@@ -13,7 +13,7 @@ https://<viewer-domain>/?url=https://<any-host>/path/file.md
 - Markdown (через `marked`) с таблицами GFM, якорями заголовков и кнопкой «копировать» у блоков кода.
 - LaTeX-формулы (через KaTeX): блочные `$$...$$` и `\[...\]`, инлайн `$...$` и `\(...\)`.
 - JSON-viewer с фильтром, сворачиванием узлов и подсчётом ключей.
-- Диаграммы из fenced code blocks:
+- Диаграммы из fenced code blocks (у Mermaid — кнопка копирования диаграммы как PNG при наведении):
   - **Mermaid** — ` ```mermaid ` / ` ```mmd `
   - **PlantUML** — ` ```plantuml ` / ` ```puml `
   - **Pikchr** — ` ```pikchr `
