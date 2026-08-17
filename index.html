@@ -658,6 +658,16 @@ marked.use({
       renderer(t) { return renderMath(t.text, true); }
     },
     {
+      name: 'blockMathBracket',
+      level: 'block',
+      start(src) { const i = src.indexOf('\\['); return i < 0 ? undefined : i; },
+      tokenizer(src) {
+        const m = /^\\\[([\s\S]+?)\\\]/.exec(src);
+        if (m && m[1].trim()) return { type: 'blockMathBracket', raw: m[0], text: m[1].trim() };
+      },
+      renderer(t) { return renderMath(t.text, true); }
+    },
+    {
       name: 'inlineMath',
       level: 'inline',
       start(src) {
@@ -674,6 +684,25 @@ marked.use({
       tokenizer(src) {
         const m = /^\$((?:\\.|[^$\n\\`])+?)\$/.exec(src);
         if (m && !/^\s|\s$/.test(m[1])) return { type: 'inlineMath', raw: m[0], text: m[1] };
+      },
+      renderer(t) { return renderMath(t.text, false); }
+    },
+    {
+      name: 'inlineMathParen',
+      level: 'inline',
+      start(src) {
+        let i = -1;
+        while ((i = src.indexOf('\\(', i + 1)) >= 0) {
+          if (i > 0 && src[i - 1] === '\\') continue;
+          const backticks = (src.slice(0, i).match(/`/g) || []).length;
+          if (backticks % 2 === 1) continue;
+          return i;
+        }
+        return undefined;
+      },
+      tokenizer(src) {
+        const m = /^\\\(((?:\\[^\)]|[^\\\n`])+?)\\\)/.exec(src);
+        if (m && m[1].trim()) return { type: 'inlineMathParen', raw: m[0], text: m[1] };
       },
       renderer(t) { return renderMath(t.text, false); }
     }
