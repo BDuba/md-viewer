@@ -310,7 +310,7 @@
       left: 50%; transform: translateX(-50%);
     }
     .md-body .table-shell.wrap.wide {
-      width: calc(100vw - 3rem);
+      width: min(1200px, calc(100vw - 3rem));
     }
     .md-body .table-wrap {
       overflow-x: auto;
@@ -366,6 +366,7 @@
     }
     .md-body .table-shell:hover .table-mode-btn,
     .md-body .table-mode-btn:focus-visible { opacity: 1; }
+    .md-body .table-shell:not(.wide) .table-mode-btn { display: none; }
     .md-body .table-mode-btn:hover { background: var(--surface-off); color: var(--text); }
     .md-body .table-mode-btn.active { color: var(--primary); opacity: 1; }
     .md-body hr { border: none; border-top: 1px solid var(--divider); margin: 2.5rem 0; }
@@ -843,8 +844,8 @@ function processDiagrams(root) {
 }
 
 /* ── Tables: breakout / wrap ────────────────────────────── */
-const TABLE_WRAP_KEY = 'mdvTableWrap';
-let tableWrapDefault = localStorage.getItem(TABLE_WRAP_KEY) === '1';
+const TABLE_MODE_KEY = 'mdvTableMode';
+let tableWrapDefault = localStorage.getItem(TABLE_MODE_KEY) !== 'nowrap';
 
 function enhanceTables(root) {
   const shells = root.querySelectorAll('.table-shell');
@@ -880,15 +881,7 @@ function enhanceTables(root) {
 
 function setTableWrapMode(on) {
   tableWrapDefault = on;
-  localStorage.setItem(TABLE_WRAP_KEY, on ? '1' : '0');
-  content.querySelectorAll('.table-shell').forEach(shell => {
-    shell.classList.toggle('wrap', on);
-    const btn = shell.querySelector('.table-mode-btn');
-    if (btn) {
-      btn.classList.toggle('active', on);
-      btn.title = on ? 'Без переноса строк' : 'Переносить строки';
-    }
-  });
+  localStorage.setItem(TABLE_MODE_KEY, on ? 'wrap' : 'nowrap');
   enhanceTables(content);
 }
 
