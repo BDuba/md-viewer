@@ -223,6 +223,17 @@
     .state-desc { font-size: var(--ts); color: var(--muted); max-width: 40ch; }
     .state-box.error .state-icon, .state-box.error .state-title { color: #a53142; }
 
+    /* Drag & drop */
+    body.drag-over::before {
+      content: 'Отпустите файл, чтобы открыть';
+      position: fixed; inset: 10px; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px dashed var(--primary); border-radius: var(--r-lg);
+      background: color-mix(in srgb, var(--bg) 78%, transparent);
+      color: var(--primary); font-size: var(--tl); font-weight: 600;
+      pointer-events: none;
+    }
+
     /* Skeleton */
     .skeleton-wrap { display: flex; flex-direction: column; gap: 1rem; }
     .skeleton {
@@ -591,7 +602,7 @@
           <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
         <p class="state-title">Загрузите локальный файл или вставьте ссылку</p>
-        <p class="state-desc">Поддерживаются <strong>.md</strong> и <strong>.json</strong>. Нажмите кнопку <strong>Открыть</strong> для выбора файла с диска, либо вставьте URL — он примет параметр <code>?url=</code>.</p>
+        <p class="state-desc">Поддерживаются <strong>.md</strong> и <strong>.json</strong>. Нажмите кнопку <strong>Открыть</strong> для выбора файла с диска, перетащите его в окно, либо вставьте URL — он примет параметр <code>?url=</code>.</p>
       </div>
     </div>
   </main>
@@ -787,6 +798,7 @@ function initMermaid() {
       startOnLoad: false,
       theme: theme === 'dark' ? 'dark' : 'default',
       securityLevel: 'loose',
+      htmlLabels: false,
     });
   });
   return mermaidReady;
@@ -812,6 +824,7 @@ async function renderMermaidEl(el) {
     const { svg } = await mermaid.render(diagramId('mmd'), source);
     el.classList.remove('diagram-loading');
     el.innerHTML = svg;
+    inlineSvgLabels(el.querySelector('svg'));
     el.insertAdjacentHTML('beforeend',
       `<button class="diagram-copy" title="Скопировать диаграмму как PNG">` +
       `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>` +
@@ -903,7 +916,7 @@ function rethemeDiagrams() {
   const blocks = content.querySelectorAll('.diagram-block[data-diagram]');
   if (!blocks.length) return;
   if (typeof mermaid !== 'undefined') {
-    mermaid.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default', securityLevel: 'loose' });
+    mermaid.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default', securityLevel: 'loose', htmlLabels: false });
   }
   blocks.forEach(el => {
     el.classList.remove('diagram-error');
@@ -939,13 +952,23 @@ function wrapTextLines(hardLines, maxW, font) {
   if (!maxW || maxW <= 0) return hardLines;
   _wrapCtx.font = font;
   const out = [];
+  const pushWord = word => {
+    if (_wrapCtx.measureText(word).width <= maxW) { out.push(word); return; }
+    let cur = '';
+    for (const ch of word) {
+      if (cur && _wrapCtx.measureText(cur + ch).width > maxW) { out.push(cur); cur = ch; }
+      else cur += ch;
+    }
+    if (cur) out.push(cur);
+  };
   hardLines.forEach(hl => {
     let cur = '';
     hl.split(/\s+/).filter(Boolean).forEach(word => {
       const cand = cur ? cur + ' ' + word : word;
       if (cur && _wrapCtx.measureText(cand).width > maxW) {
         out.push(cur);
-        cur = word;
+        if (_wrapCtx.measureText(word).width > maxW) pushWord(word);
+        else cur = word;
       } else {
         cur = cand;
       }
@@ -960,6 +983,47 @@ function foLines(fo) {
   const html = (div ? div.innerHTML : fo.innerHTML) || '';
   return html.split(/<br\s*\/?>/i)
     .map(s => s.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim());
+}
+
+function foToSvgText(fo) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const x = parseFloat(fo.getAttribute('x')) || 0;
+  const y = parseFloat(fo.getAttribute('y')) || 0;
+  const w = parseFloat(fo.getAttribute('width')) || 0;
+  const h = parseFloat(fo.getAttribute('height')) || 0;
+  const div = fo.querySelector('div');
+  const cs = getComputedStyle(div || fo);
+  const fontSize = parseFloat(cs.fontSize) || 16;
+  const fontFamily = cs.fontFamily || 'sans-serif';
+  const lineH = parseFloat(cs.lineHeight) || fontSize * 1.5;
+  const maxW = ((div && div.clientWidth) || w) || 0;
+  const hardLines = foLines(fo).filter(Boolean);
+  const nowrap = div && getComputedStyle(div).whiteSpace === 'nowrap';
+  let lines = nowrap ? hardLines : wrapTextLines(hardLines, maxW, `${fontSize}px ${fontFamily}`);
+  if (lines.length * lineH > h + 4) lines = hardLines;
+  const text = document.createElementNS(NS, 'text');
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('fill', cs.color || '#333333');
+  text.setAttribute('font-size', fontSize);
+  text.setAttribute('font-family', fontFamily);
+  const fw = parseInt(cs.fontWeight, 10);
+  if (fw && fw > 400) text.setAttribute('font-weight', fw);
+  const n = Math.max(lines.length, 1);
+  lines.forEach((line, li) => {
+    const tspan = document.createElementNS(NS, 'tspan');
+    tspan.setAttribute('x', x + w / 2);
+    tspan.setAttribute('y', y + h / 2 + (li - (n - 1) / 2) * lineH + fontSize * 0.35);
+    tspan.textContent = line;
+    text.appendChild(tspan);
+  });
+  return text;
+}
+
+function inlineSvgLabels(svg) {
+  if (!svg) return;
+  svg.querySelectorAll('foreignObject').forEach(fo => {
+    try { fo.replaceWith(foToSvgText(fo)); } catch (e) { console.error('fo convert failed', e); }
+  });
 }
 
 function convertForeignObjects(origSvg, cloneSvg) {
@@ -1031,6 +1095,10 @@ function svgToPngBlob(svg) {
       canvas.width = w * scale;
       canvas.height = h * scale;
       const ctx = canvas.getContext('2d');
+      const blockBg = svg.closest('.diagram-block');
+      const bgColor = blockBg ? getComputedStyle(blockBg).backgroundColor : '';
+      ctx.fillStyle = (/^rgba\([^)]*,\s*0\)$/.test(bgColor) || !bgColor) ? '#ffffff' : bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
       canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
@@ -1309,7 +1377,7 @@ function showEmptyState() {
       <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
     </svg>
     <p class="state-title">Загрузите локальный файл или вставьте ссылку</p>
-    <p class="state-desc">Поддерживаются <strong>.md</strong> и <strong>.json</strong>. Нажмите кнопку <strong>Открыть</strong> для выбора файла с диска, либо вставьте URL — он примет параметр <code>?url=</code>.</p>
+    <p class="state-desc">Поддерживаются <strong>.md</strong> и <strong>.json</strong>. Нажмите кнопку <strong>Открыть</strong> для выбора файла с диска, перетащите его в окно, либо вставьте URL — он примет параметр <code>?url=</code>.</p>
   </div>`;
   document.title = 'File Viewer';
 }
@@ -1424,6 +1492,27 @@ function renderContent(text, type, source, isLocal = false) {
 
 fileInput.addEventListener('change', e => {
   const file = e.target.files[0];
+  if (file) loadLocalFile(file);
+});
+
+/* ── Drag & drop ───────────────────────────────────────── */
+function dragHasFiles(e) {
+  return Array.from(e.dataTransfer?.types || []).includes('Files');
+}
+['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => {
+  if (!dragHasFiles(e)) return;
+  e.preventDefault();
+  document.body.classList.add('drag-over');
+}));
+document.addEventListener('dragleave', e => {
+  if (e.relatedTarget) return;
+  document.body.classList.remove('drag-over');
+});
+document.addEventListener('drop', e => {
+  if (!dragHasFiles(e)) return;
+  e.preventDefault();
+  document.body.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
   if (file) loadLocalFile(file);
 });
 
@@ -1555,8 +1644,15 @@ function resolveInlineImages(md) {
 }
 
 function svgToDataUri(svg) {
+  const clone = svg.cloneNode(true);
+  const vb = clone.viewBox && clone.viewBox.baseVal;
+  if (vb && vb.width) {
+    clone.setAttribute('width', Math.ceil(vb.width));
+    clone.setAttribute('height', Math.ceil(vb.height));
+    clone.removeAttribute('style');
+  }
   const serializer = new XMLSerializer();
-  let str = serializer.serializeToString(svg);
+  let str = serializer.serializeToString(clone);
   if (!str.match(/\<\?xml/)) {
     str = '\u003c?xml version="1.0" encoding="UTF-8"?\u003e' + str;
   }
